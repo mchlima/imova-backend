@@ -15,6 +15,7 @@ import { MovePipelineDto } from './dto/move-pipeline.dto'
 import { ReorderDto } from './dto/reorder.dto'
 import { CreateActivityDto } from './dto/create-activity.dto'
 import { UpdateActivityDto } from './dto/update-activity.dto'
+import { CreateCommentDto, UpdateCommentDto } from './dto/comment.dto'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import type { SafeUser } from '../auth/auth.service'
@@ -105,5 +106,33 @@ export class OpportunitiesController {
     @Param('activityId') activityId: string,
   ) {
     return this.opportunities.removeActivity(id, activityId)
+  }
+
+  // ── comentários internos (CRM) ──
+  @Post(':id/comments')
+  @UseGuards(JwtAuthGuard)
+  addComment(@Param('id') id: string, @Body() dto: CreateCommentDto, @CurrentUser() user: SafeUser) {
+    return this.opportunities.addComment(id, dto, user)
+  }
+
+  @Patch(':id/comments/:commentId')
+  @UseGuards(JwtAuthGuard)
+  updateComment(
+    @Param('id') id: string,
+    @Param('commentId') commentId: string,
+    @Body() dto: UpdateCommentDto,
+    @CurrentUser() user: SafeUser,
+  ) {
+    return this.opportunities.updateComment(id, commentId, dto, user)
+  }
+
+  @Delete(':id/comments/:commentId')
+  @UseGuards(JwtAuthGuard)
+  removeComment(
+    @Param('id') id: string,
+    @Param('commentId') commentId: string,
+    @CurrentUser() user: SafeUser,
+  ) {
+    return this.opportunities.removeComment(id, commentId, user)
   }
 }

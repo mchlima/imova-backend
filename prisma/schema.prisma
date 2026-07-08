@@ -44,6 +44,7 @@ model Tenant {
   opportunities Opportunity[]
   activities    OpportunityActivity[]
   opportunityEvents OpportunityEvent[]
+  opportunityComments OpportunityComment[]
   pipelines     Pipeline[]
   stages        Stage[]
   fieldSections    FieldSection[]
@@ -308,6 +309,8 @@ model Opportunity {
   activities OpportunityActivity[]
   // log imutável de alterações/movimentações (aba "Histórico") — ADR 0006
   events     OpportunityEvent[]
+  // comentários internos da equipe (aba "Comentários")
+  comments   OpportunityComment[]
   createdAt  DateTime             @default(now())
   updatedAt  DateTime             @updatedAt
 
@@ -403,6 +406,25 @@ model OpportunityEvent {
   @@index([opportunityId])
   @@index([tenantId])
   @@map("opportunity_events")
+}
+
+// Comentários internos da equipe na oportunidade (aba "Comentários"). Thread simples;
+// o autor (authorId) pode editar/excluir o próprio. `author` guarda o nome p/ exibição.
+model OpportunityComment {
+  id            String      @id @default(uuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  body      String
+  authorId  String   // id do usuário dono do comentário (edita/exclui o próprio)
+  author    String   @default("") // nome congelado (exibição)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([opportunityId])
+  @@index([tenantId])
+  @@map("opportunity_comments")
 }
 
 // Base de localidades (IBGE) com taxas estimadas.

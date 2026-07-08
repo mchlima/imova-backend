@@ -1,11 +1,13 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { TenantService } from '../tenant/tenant.service'
+import type { SafeUser } from '../auth/auth.service'
 import { UpdateOpportunityDto } from './dto/update-opportunity.dto'
 import { CreateOpportunityDto } from './dto/create-opportunity.dto'
 import { CreateActivityDto } from './dto/create-activity.dto'
 import { UpdateActivityDto } from './dto/update-activity.dto'
+import { CreateCommentDto, UpdateCommentDto } from './dto/comment.dto'
 
 // Contato (com canais) + responsáveis + histórico/atividades (timeline) em ordem cronológica.
 const withRelations = {
@@ -14,6 +16,8 @@ const withRelations = {
   activities: { orderBy: { createdAt: 'desc' as const } },
   // histórico de alterações/movimentações (mais recente primeiro)
   events: { orderBy: { createdAt: 'desc' as const } },
+  // comentários internos (mais antigo no topo, como um chat)
+  comments: { orderBy: { createdAt: 'asc' as const } },
 }
 
 // Payload genérico de ingestão (CRM core — sem regra de domínio do Meu Revelar).
@@ -486,6 +490,41 @@ export class OpportunitiesService {
     await this.ensureActivity(id, activityId)
     await this.prisma.opportunityActivity.delete({ where: { id: activityId } })
     return this.prisma.opportunity.findUnique({ where: { id }, include: withRelations })
+  }
+
+  // ── comentários internos (CRM) ──
+  async addComment(id: string, dto: CreateCommentDto, user: SafeUser) {
+    await this.ensureExists(id)
+    const tenantId = await this.tenant.currentId()
+    await this.prisma.opportunityComment.create({
+      data: { tenantId, opportunityId: id, body: dto.body, authorId: user.id, author: user.name },
+    })
+    return this.prisma.opportunity.findUnique({ where: { id }, include: withRelations })
+  }
+
+  async updateComment(id: string, commentId: string, dto: UpdateCommentDto, user: SafeUser) {
+    await this.ensureOwnComment(id, commentId, user.id)
+    await this.prisma.opportunityComment.update({ where: { id: commentId }, data: { body: dto.body } })
+    return this.prisma.opportunity.findUnique({ where: { id }, include: withRelations })
+  }
+
+  async removeComment(id: string, commentId: string, user: SafeUser) {
+    await this.ensureOwnComment(id, commentId, user.id)
+    await this.prisma.opportunityComment.delete({ where: { id: commentId } })
+    return this.prisma.opportunity.findUnique({ where: { id }, include: withRelations })
+  }
+
+  // Garante que o comentário existe, é da oportunidade/tenant e pertence ao usuário.
+  private async ensureOwnComment(opportunityId: string, commentId: string, userId: string) {
+    const tenantId = await this.tenant.currentId()
+    const c = await this.prisma.opportunityComment.findFirst({
+      where: { id: commentId, tenantId },
+      select: { opportunityId: true, authorId: true },
+    })
+    if (!c || c.opportunityId !== opportunityId)
+      throw new NotFoundException('Comentário não encontrado.')
+    if (c.authorId !== userId)
+      throw new ForbiddenException('Você só pode editar/excluir os próprios comentários.')
   }
 
   // Garante que a oportunidade existe e é do tenant atual; retorna o tenantId.
