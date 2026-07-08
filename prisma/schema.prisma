@@ -1,0 +1,391 @@
+// Prisma schema — Meu Revelar backend
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  AGENT
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         UserRole @default(AGENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  posts Post[]
+  // oportunidades pelas quais este usuário é responsável (M2M) — conceito genérico de CRM
+  assignedOpportunities Opportunity[] @relation("OpportunityAssignees")
+
+  @@map("users")
+}
+
+// ── CRM: tenancy (multi-tenant) ────────────────────────────────────────────
+// O CRM é multi-tenant: cada projeto que usa o CRM é um Tenant. O Meu Revelar é o
+// tenant 'imova'. Toda entidade do CRM carrega tenantId e é escopada por ele.
+// Ver ADR 0002 (imova-docs/decisions/0002-crm-portavel-multi-tenant.md).
+model Tenant {
+  id        String   @id @default(uuid())
+  slug      String   @unique // 'imova'
+  name      String
+  apiKeys       ApiKey[]
+  contacts      Contact[]
+  opportunities Opportunity[]
+  activities    OpportunityActivity[]
+  pipelines     Pipeline[]
+  stages        Stage[]
+  fieldSections    FieldSection[]
+  fieldDefinitions FieldDefinition[]
+  createdAt DateTime @default(now())
+
+  @@map("tenants")
+}
+
+// ── CRM: funil como dado (pipeline configurável por tenant) ─────────────────
+// Os estágios do funil (status) deixam de ser constantes no código e viram dado
+// por tenant. Ver ADR 0002 §4.
+model Pipeline {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  key       String   @default("default")
+  label     String
+  stages    Stage[]
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, key])
+  @@map("pipelines")
+}
+
+model Stage {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  key        String // 'lead', 'contatar'... (casa com Opportunity.status)
+  label      String
+  color      String   @default("") // cor do badge (front lê do dado)
+  order      Int      @default(0)
+  inKanban   Boolean  @default(true) // aparece como coluna no kanban?
+  isWon      Boolean  @default(false)
+  isLost     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@unique([tenantId, pipelineId, key])
+  @@index([tenantId])
+  @@map("stages")
+}
+
+// ── CRM: campos personalizados (custom fields como dado) ────────────────────
+// Enriquecimento da oportunidade (qualificação, preferências, etc.) deixa de ser
+// código e vira dado. Valores ficam em Opportunity.fields (JSONB). Ver ADR 0001.
+model FieldSection {
+  id       String            @id @default(uuid())
+  tenantId String
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  key      String // 'qualificacao', 'preferencias'
+  label    String
+  order    Int               @default(0)
+  fields   FieldDefinition[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+  @@map("field_sections")
+}
+
+model FieldDefinition {
+  id        String       @id @default(uuid())
+  tenantId  String
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sectionId String
+  section   FieldSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  key       String // chave no JSONB Opportunity.fields
+  label     String
+  type      String // text|textarea|number|money|select|multiselect|boolean|date
+  options   Json         @default("[]") // para select/multiselect
+  order     Int          @default(0)
+  indexed   Boolean      @default(false) // promoção (filtro/agregação) — ver ADR 0001 §6
+  archived  Boolean      @default(false) // esconde da UI sem apagar valores
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // key única POR SEÇÃO (fields aninhado: { sectionKey: { fieldKey: valor } })
+  @@unique([tenantId, sectionId, key])
+  @@index([tenantId])
+  @@index([sectionId])
+  @@map("field_definitions")
+}
+
+// Chave de API por tenant (para ingestão/integração externa). Guarda só o hash.
+model ApiKey {
+  id        String    @id @default(uuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  hash      String    @unique
+  label     String    @default("")
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId])
+  @@map("api_keys")
+}
+
+// ── CMS ───────────────────────────────────────────────────────────────────
+// Taxonomia de 3 níveis (Categoria → Subcategoria → Tópico) via self-relation.
+model Category {
+  id          String     @id @default(uuid())
+  name        String
+  slug        String     @unique
+  description String     @default("") // resumo curto (card/listagem)
+  level       Int // 1, 2 ou 3
+  order       Int        @default(0)
+  parentId    String?
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Category[] @relation("CategoryTree")
+  posts       Post[]
+
+  // SEO/GEO (página de categoria)
+  intro           String @default("") // texto introdutório (GEO)
+  faq             Json   @default("[]") // [{ q, a }] — GEO
+  metaTitle       String @default("")
+  metaDescription String @default("")
+  canonicalUrl    String @default("")
+  ogImage         String @default("")
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Tag {
+  id          String @id @default(uuid())
+  name        String
+  slug        String @unique
+  description String @default("") // resumo curto (card/listagem)
+  posts       Post[] @relation("PostTags")
+
+  // SEO/GEO (página de tag)
+  intro           String @default("") // texto introdutório (GEO)
+  faq             Json   @default("[]") // [{ q, a }] — GEO
+  metaTitle       String @default("")
+  metaDescription String @default("")
+  canonicalUrl    String @default("")
+  ogImage         String @default("")
+
+  @@map("tags")
+}
+
+// Post com rascunho (campos normalizados) + snapshot do publicado.
+// O site público lê o snapshot; salvar o rascunho NÃO altera o publicado.
+model Post {
+  id      String @id @default(uuid())
+  slug    String @unique
+  title   String
+  deck    String @default("")
+  body    String @default("") // markdown (rascunho)
+  bullets Json   @default("[]") // resumo direto (string[]) — GEO
+  faq     Json   @default("[]") // [{ q, a }] — GEO
+
+  // capa (R2)
+  coverImageUrl String @default("")
+  coverImageKey String @default("") // chave do objeto no bucket (p/ exclusão)
+
+  // SEO
+  metaTitle       String @default("")
+  metaDescription String @default("")
+  canonicalUrl    String @default("")
+  ogImage         String @default("")
+
+  // taxonomia (rascunho)
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id])
+  tags       Tag[]     @relation("PostTags")
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  // publicação (snapshot do que está no ar)
+  published              Boolean   @default(false)
+  publishedAt            DateTime? // última publicação (muda a cada republicação)
+  firstPublishedAt       DateTime? // primeira publicação (fixo — ordena o site)
+  publishedSnapshot      Json?
+  publishedHash          String    @default("") // hash do conteúdo publicado (detecta alterações reais)
+  publishedSlug          String?
+  publishedCategorySlugs String[]  @default([]) // caminho (root→leaf) p/ filtrar por qualquer nível
+  publishedTagSlugs      String[]  @default([])
+
+  // arquivamento (remove do site sem apagar)
+  archived   Boolean   @default(false)
+  archivedAt DateTime?
+
+  views PostView[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([published])
+  @@index([publishedSlug])
+  @@index([archived])
+  @@map("posts")
+}
+
+// Engajamento por leitura (analytics). Uma linha por sessão de leitura.
+// O tempo é acumulado via heartbeat (tempo ATIVO: aba visível + sem ociosidade),
+// então uma queda de energia perde no máximo o último intervalo.
+model PostView {
+  id            String   @id @default(uuid())
+  postId        String
+  post          Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  slug          String
+  sessionId     String   @default("")
+  activeSeconds Int      @default(0) // tempo ativo de leitura (merge por max)
+  maxScroll     Int      @default(0) // profundidade máx. de scroll, 0-100
+  buckets       Json     @default("[]") // number[] — segundos ativos por faixa de scroll (mapa de calor)
+  device        String   @default("") // desktop | mobile
+  referrer      String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([postId])
+  @@index([slug])
+  @@map("post_views")
+}
+
+// Oportunidade capturada pelo simulador público e qualificada na triagem do admin.
+// (entidade antes chamada "Lead" — "Lead" permanece apenas como rótulo de status do funil.)
+// status/temperature usam os rótulos PT-BR exibidos na UI (ex.: "Lead", "Quente").
+model Opportunity {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // Núcleo genérico: SEM campos de domínio. Localização/valor de interesse e tudo
+  // que vem do simulador são CAMPOS PERSONALIZADOS (fields JSONB) — ADR 0001/0002.
+  status        String   @default("Lead")
+  boardOrder    Float    @default(0) // ordem manual no kanban (asc = topo)
+  lossReason    String   @default("") // motivo quando status = Perdido
+  temperature   String   @default("Sem classificação")
+  source        String   @default("") // origem do lead (ex.: 'simulador') — genérico
+  // qualificação e preferências agora são CAMPOS PERSONALIZADOS (fields JSONB) — ADR 0001
+
+  // valores dos campos personalizados, aninhados por seção — ADR 0001
+  // { sectionKey: { fieldKey: valor } }. Simulador é a seção 'simulador'.
+  fields        Json     @default("{}")
+
+  // contato dono da oportunidade (1 contato → N oportunidades)
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id])
+
+  // responsáveis pela oportunidade (0..N usuários) — exibidos como avatares no card
+  assignees User[] @relation("OpportunityAssignees")
+
+  activities OpportunityActivity[]
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  @@index([contactId])
+  @@index([tenantId])
+  @@map("opportunities")
+}
+
+// Pessoa (contato). Um contato pode ter várias oportunidades ao longo do tempo.
+// Dedup por e-mail na captura do simulador. Residência = onde a pessoa MORA
+// (diferente da localização de interesse de compra, que fica na oportunidade).
+model Contact {
+  id    String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name  String
+  // formas de contato (vários): email | whatsapp | telefone | outro. Dedup por canal de e-mail.
+  channels ContactChannel[]
+  // residência (onde mora) — endereço estruturado
+  residenceUf           String @default("")
+  residenceCity         String @default("")
+  residenceStreetType   String @default("") // Rua, Avenida, Estrada, Rodovia...
+  residenceStreet       String @default("") // logradouro
+  residenceNumber       String @default("")
+  residenceComplement   String @default("")
+  residenceNeighborhood String @default("")
+  residencePostalCode   String @default("") // CEP
+  opportunities    Opportunity[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([tenantId])
+  @@map("contacts")
+}
+
+// Uma forma de contato do Contact (tipo + valor). Permite N e-mails/telefones.
+model ContactChannel {
+  id        String   @id @default(uuid())
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  type      String   @default("email") // email | whatsapp | telefone | outro
+  value     String
+  createdAt DateTime @default(now())
+
+  @@index([contactId])
+  @@map("contact_channels")
+}
+
+// Histórico/atividades de CRM (timeline unificada): registro do que aconteceu (done),
+// agendamento do que vem (dueAt no futuro) e anotações livres (type=nota, sem dueAt).
+// type: nota | ligação | whatsapp | email | reunião | visita | tarefa | outro.
+model OpportunityActivity {
+  id            String       @id @default(uuid())
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunityId String
+  opportunity   Opportunity  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  type      String    @default("tarefa")
+  title     String
+  notes     String    @default("")
+  dueAt     DateTime? // quando está agendada (atividade futura)
+  done      Boolean   @default(false)
+  doneAt    DateTime?
+  author    String    @default("")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([opportunityId])
+  @@index([dueAt])
+  @@index([tenantId])
+  @@map("opportunity_activities")
+}
+
+// Base de localidades (IBGE) com taxas estimadas.
+// notaryRate: alíquota efetiva ESTIMADA de cartório (emolumentos são tabela estadual
+// progressiva — aqui aproximada por um % por estado). itbiRate: ITBI é municipal;
+// estimado por cidade (capitais ~3%, demais ~2%) com ajustes nas principais.
+model State {
+  uf         String  @id
+  name       String
+  region     String
+  notaryRate Float
+  cities     City[]
+
+  @@map("states")
+}
+
+model City {
+  id        Int     @id // código IBGE
+  name      String
+  uf        String
+  state     State   @relation(fields: [uf], references: [uf])
+  itbiRate  Float
+  isCapital Boolean @default(false)
+
+  @@index([uf])
+  @@index([name])
+  @@map("cities")
+}
+

@@ -1,0 +1,19 @@
+# deps
+node_modules
+
+# build
+dist
+
+# env (segredos)
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+
+# prisma
+prisma/*.db
+
+# misc
+.DS_Store
