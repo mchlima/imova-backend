@@ -1,0 +1,16 @@
+# Deploy do backend Meu Revelar no VPS (Docker).
+# O Postgres de produção já roda no host (container postgres:17, porta 5432);
+# aqui subimos SÓ a API. A API alcança o banco via host-gateway (host.docker.internal).
+# Publicamos em 127.0.0.1:3334 (o nginx do host faz o reverse proxy). Porta interna 3333.
+
+services:
+  api:
+    build: .
+    image: imova-backend:latest
+    container_name: imova-backend-api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:3334:3333"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
