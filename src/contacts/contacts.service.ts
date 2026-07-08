@@ -35,7 +35,7 @@ export class ContactsService {
           orderBy: { createdAt: 'desc' },
           select: {
             id: true,
-            status: true,
+            stageId: true,
             temperature: true,
             fields: true,
             createdAt: true,

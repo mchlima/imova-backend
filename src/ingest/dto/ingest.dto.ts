@@ -37,6 +37,6 @@ export class IngestDto {
   // seção/campo sem definição no tenant é ignorado. Sem nenhum campo de domínio.
   @IsOptional() @IsObject() fields?: Record<string, Record<string, unknown>>
 
-  // estágio inicial (key), decidido por quem chama. Ausente = primeiro estágio.
-  @IsOptional() @IsString() stageKey?: string
+  // estágio inicial referenciado pelo id EXTERNO do estágio. Ausente = primeiro estágio.
+  @IsOptional() @IsString() stageExternalId?: string
 }

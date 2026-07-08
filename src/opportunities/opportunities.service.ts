@@ -24,7 +24,8 @@ export interface IngestInput {
   // valores dos campos personalizados, aninhados por seção: { sectionKey: { fieldKey: valor } }
   // chaves sem definição (seção ou campo) são ignoradas.
   fields?: Record<string, Record<string, unknown>>
-  stageKey?: string // estágio inicial (decidido por quem chama); ausente = primeiro estágio
+  // estágio inicial referenciado pelo id EXTERNO (integrações); ausente = primeiro estágio
+  stageExternalId?: string
 }
 
 @Injectable()
@@ -41,21 +42,24 @@ export class OpportunitiesService {
   // tenant, adiciona canais que faltarem e cria a oportunidade no estágio dado
   // (ou no primeiro estágio do funil). Sem nenhuma regra específica de domínio.
   async ingest(input: IngestInput) {
-    const { tenantId, contact: c, stageKey } = input
+    const { tenantId, contact: c, stageExternalId } = input
     const contact = await this.resolveContact(tenantId, c)
 
-    // toda oportunidade nova cai no board padrão (Captação) — o repasse é manual.
-    const pipeline = await this.defaultPipeline(tenantId)
-    const status = stageKey || (await this.defaultStageKey(tenantId, pipeline.id))
+    // estágio via id externo (define também o pipeline); ausente = board padrão + 1º estágio.
+    const stage = stageExternalId
+      ? await this.prisma.stage.findFirst({ where: { tenantId, externalId: stageExternalId } })
+      : null
+    const pipelineId = stage ? stage.pipelineId : (await this.defaultPipeline(tenantId)).id
+    const stageId = stage ? stage.id : await this.defaultStageId(tenantId, pipelineId)
     // sanitiza os campos aninhados contra as definições (ignora seção/campo desconhecido)
     const map = await this.fieldTypeMap(tenantId)
     const fields = sanitizeNested(map, input.fields ?? {})
     return this.prisma.opportunity.create({
       data: {
         tenantId,
-        pipelineId: pipeline.id,
+        pipelineId,
         contactId: contact.id,
-        status,
+        stageId,
         source: input.source ?? '',
         fields: fields as Prisma.InputJsonValue,
       },
@@ -87,7 +91,7 @@ export class OpportunitiesService {
     const pipeline = dto.pipelineId
       ? await this.ensurePipeline(tenantId, dto.pipelineId)
       : await this.defaultPipeline(tenantId)
-    const status = dto.stageKey || (await this.defaultStageKey(tenantId, pipeline.id))
+    const stageId = dto.stageId || (await this.defaultStageId(tenantId, pipeline.id))
     const map = await this.fieldTypeMap(tenantId)
     const fields = sanitizeNested(map, dto.fields ?? {})
     return this.prisma.opportunity.create({
@@ -95,7 +99,7 @@ export class OpportunitiesService {
         tenantId,
         pipelineId: pipeline.id,
         contactId,
-        status,
+        stageId,
         source: dto.source ?? 'manual',
         temperature: dto.temperature ?? 'Sem classificação',
         fields: fields as Prisma.InputJsonValue,
@@ -145,14 +149,15 @@ export class OpportunitiesService {
     return contact
   }
 
-  // Primeiro estágio de um board (ou do tenant, se pipelineId ausente) — fallback
-  // quando a ingestão não informa o estágio inicial.
-  private async defaultStageKey(tenantId: string, pipelineId?: string) {
+  // Id do primeiro estágio de um board (ou do tenant, se pipelineId ausente) — fallback
+  // quando a ingestão/criação não informa o estágio inicial.
+  private async defaultStageId(tenantId: string, pipelineId?: string) {
     const stage = await this.prisma.stage.findFirst({
       where: { tenantId, ...(pipelineId ? { pipelineId } : {}) },
       orderBy: { order: 'asc' },
+      select: { id: true },
     })
-    return stage?.key ?? 'Lead'
+    return stage?.id ?? null
   }
 
   // Board padrão do tenant (primeiro por ordem) — destino de novas oportunidades.
@@ -179,12 +184,12 @@ export class OpportunitiesService {
   async moveToPipeline(id: string, pipelineId: string, assigneeIds?: string[]) {
     const tenantId = await this.ensureExists(id)
     const pipeline = await this.ensurePipeline(tenantId, pipelineId)
-    const status = await this.defaultStageKey(tenantId, pipeline.id)
+    const stageId = await this.defaultStageId(tenantId, pipeline.id)
     return this.prisma.opportunity.update({
       where: { id },
       data: {
         pipelineId: pipeline.id,
-        status,
+        stageId,
         boardOrder: 0,
         ...(assigneeIds ? { assignees: { set: assigneeIds.map((uid) => ({ id: uid })) } } : {}),
       },
@@ -213,13 +218,13 @@ export class OpportunitiesService {
 
   // Reordenação do kanban: atualiza boardOrder (e status, se mudou de coluna) em lote.
   // updateMany com filtro de tenant garante que só se mexe no que é do tenant.
-  async reorder(items: { id: string; status?: string; boardOrder: number }[]) {
+  async reorder(items: { id: string; stageId?: string; boardOrder: number }[]) {
     const tenantId = await this.tenant.currentId()
     return this.prisma.$transaction(
       items.map((i) =>
         this.prisma.opportunity.updateMany({
           where: { id: i.id, tenantId },
-          data: { boardOrder: i.boardOrder, ...(i.status ? { status: i.status } : {}) },
+          data: { boardOrder: i.boardOrder, ...(i.stageId ? { stageId: i.stageId } : {}) },
         }),
       ),
     )
@@ -284,7 +289,7 @@ export class OpportunitiesService {
         opportunity: {
           select: {
             id: true,
-            status: true,
+            stageId: true,
             temperature: true,
             fields: true,
             contact: {

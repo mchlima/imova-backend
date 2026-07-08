@@ -2,8 +2,8 @@ import { IsArray, IsIn, IsObject, IsNumber, IsOptional, IsString } from 'class-v
 
 // Campos editáveis na triagem do admin (PATCH /opportunities/:id).
 export class UpdateOpportunityDto {
-  // status é validado contra os estágios do funil (dado) no service, não aqui
-  @IsOptional() @IsString() status?: string
+  // estágio atual (id interno). A FK no banco garante que existe.
+  @IsOptional() @IsString() stageId?: string
 
   @IsOptional()
   @IsIn(['Quente', 'Morno', 'Frio', 'Sem classificação'])
@@ -11,7 +11,7 @@ export class UpdateOpportunityDto {
 
   @IsOptional() @IsNumber() boardOrder?: number
 
-  // motivo da perda (quando status = estágio de perda)
+  // motivo da perda (quando o estágio é de perda)
   @IsOptional() @IsString() lossReason?: string
 
   // valores dos campos personalizados (patch parcial, mesclado no service)

@@ -8,8 +8,7 @@ import {
 } from 'class-validator'
 
 export class CreateStageDto {
-  // key casa com Opportunity.status; imutável após criação (não migra status).
-  @IsString() @IsNotEmpty() key!: string
+  // identidade é o id (gerado) + externalId (integrações); estágio é referenciado por id.
   @IsString() @IsNotEmpty() label!: string
   @IsOptional() @IsString() color?: string
   @IsOptional() @IsInt() order?: number
@@ -21,8 +20,6 @@ export class CreateStageDto {
 }
 
 export class UpdateStageDto {
-  // ao mudar a key, o service migra Opportunity.status (oldKey → newKey) do pipeline.
-  @IsOptional() @IsString() @IsNotEmpty() key?: string
   @IsOptional() @IsString() @IsNotEmpty() label?: string
   @IsOptional() @IsString() color?: string
   @IsOptional() @IsInt() order?: number

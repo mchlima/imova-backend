@@ -4,7 +4,7 @@ import { TenantService } from '../tenant/tenant.service'
 import { IngestDto } from '../ingest/dto/ingest.dto'
 
 // Captura PÚBLICA (ex.: simulador do site). Genérica, sem regra de domínio:
-// recebe { contact, fields, stageKey } e delega ao core. Quem chama (o site)
+// recebe { contact, fields, stageExternalId } e delega ao core. Quem chama (o site)
 // decide o estágio — inclusive o roteamento de área (RMSP) vive no site.
 // Resolve o tenant padrão desta instância (não usa API key, é público).
 @Controller('capture')
@@ -22,7 +22,7 @@ export class CaptureController {
       source: dto.source ?? 'capture',
       contact: dto.contact,
       fields: dto.fields,
-      stageKey: dto.stageKey,
+      stageExternalId: dto.stageExternalId,
     })
   }
 }

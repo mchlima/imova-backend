@@ -53,15 +53,15 @@ export class PipelinesService {
   async stages() {
     const tenantId = await this.tenant.currentId()
     const stages = await this.prisma.stage.findMany({ where: { tenantId }, orderBy: { order: 'asc' } })
-    // nº de oportunidades por (pipeline, status) — usado na config (delete com migração)
+    // nº de oportunidades por estágio (id) — usado na config (delete com migração)
     const grouped = await this.prisma.opportunity.groupBy({
-      by: ['pipelineId', 'status'],
+      by: ['stageId'],
       where: { tenantId },
       _count: { _all: true },
     })
-    const countOf = (pipelineId: string, key: string) =>
-      grouped.find((g) => g.pipelineId === pipelineId && g.status === key)?._count._all ?? 0
-    return stages.map((s) => ({ ...s, oppCount: countOf(s.pipelineId, s.key) }))
+    const countOf = (stageId: string) =>
+      grouped.find((g) => g.stageId === stageId)?._count._all ?? 0
+    return stages.map((s) => ({ ...s, oppCount: countOf(s.id) }))
   }
 
   async createStage(dto: CreateStageDto) {
@@ -70,11 +70,11 @@ export class PipelinesService {
       ? await this.ensurePipeline(tenantId, dto.pipelineId)
       : await this.defaultPipeline(tenantId)
     const order = dto.order ?? (await this.nextOrder(tenantId, pipeline.id))
+    // externalId é gerado automaticamente (default(uuid()) no schema)
     return this.prisma.stage.create({
       data: {
         tenantId,
         pipelineId: pipeline.id,
-        key: dto.key,
         label: dto.label,
         color: dto.color ?? '#64748b',
         order,
@@ -86,49 +86,27 @@ export class PipelinesService {
   }
 
   async updateStage(id: string, dto: UpdateStageDto) {
-    const stage = await this.ensureStage(id)
-    const data: Record<string, unknown> = { ...dto }
-    if (dto.key !== undefined) {
-      const key = dto.key.trim()
-      if (!key) throw new BadRequestException('A key não pode ser vazia.')
-      if (key !== stage.key) {
-        // key única no tenant (convenção) — evita colisão no lookup global por status
-        const dup = await this.prisma.stage.findFirst({
-          where: { tenantId: stage.tenantId, key, id: { not: id } },
-          select: { id: true },
-        })
-        if (dup) throw new BadRequestException('Já existe um estágio com essa key.')
-        // migra o status das oportunidades deste estágio (mesmo pipeline) p/ a nova key
-        await this.prisma.opportunity.updateMany({
-          where: { tenantId: stage.tenantId, pipelineId: stage.pipelineId, status: stage.key },
-          data: { status: key },
-        })
-      }
-      data.key = key
-    }
-    return this.prisma.stage.update({ where: { id }, data })
+    await this.ensureStage(id)
+    // identidade é o id — renomear label não afeta as oportunidades (FK por id)
+    return this.prisma.stage.update({ where: { id }, data: { ...dto } })
   }
 
   // Exclui um estágio. Se houver oportunidades nele, migra-as para `moveToStageId`
-  // (mesmo pipeline) antes de apagar — evita oportunidades órfãs (status sem coluna).
+  // antes de apagar (a FK impede excluir com oportunidades ainda apontando pra ele).
   async deleteStage(id: string, moveToStageId?: string) {
     const stage = await this.ensureStage(id)
-    const where = {
-      tenantId: stage.tenantId,
-      pipelineId: stage.pipelineId,
-      status: stage.key,
-    }
+    const where = { tenantId: stage.tenantId, stageId: id }
     const count = await this.prisma.opportunity.count({ where })
     if (count > 0) {
       if (!moveToStageId)
         throw new BadRequestException('Há oportunidades neste estágio. Informe o estágio de destino.')
       const target = await this.prisma.stage.findFirst({
         where: { id: moveToStageId, tenantId: stage.tenantId, pipelineId: stage.pipelineId },
-        select: { id: true, key: true },
+        select: { id: true },
       })
       if (!target || target.id === id)
         throw new BadRequestException('Estágio de destino inválido.')
-      await this.prisma.opportunity.updateMany({ where, data: { status: target.key } })
+      await this.prisma.opportunity.updateMany({ where, data: { stageId: target.id } })
     }
     await this.prisma.stage.delete({ where: { id } })
     return { ok: true, moved: count }
@@ -175,7 +153,7 @@ export class PipelinesService {
     const tenantId = await this.tenant.currentId()
     const s = await this.prisma.stage.findFirst({
       where: { id, tenantId },
-      select: { id: true, tenantId: true, pipelineId: true, key: true },
+      select: { id: true, tenantId: true, pipelineId: true },
     })
     if (!s) throw new NotFoundException('Estágio não encontrado.')
     return s

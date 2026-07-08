@@ -18,7 +18,7 @@ export class IngestController {
       source: dto.source,
       contact: dto.contact,
       fields: dto.fields,
-      stageKey: dto.stageKey,
+      stageExternalId: dto.stageExternalId,
     })
   }
 }

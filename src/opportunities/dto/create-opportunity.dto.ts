@@ -42,8 +42,8 @@ export class CreateOpportunityDto {
   // board (pipeline) de destino. Ausente = board padrão (Captação).
   @IsOptional() @IsString() pipelineId?: string
 
-  // estágio inicial (key). Ausente = primeiro estágio do board.
-  @IsOptional() @IsString() stageKey?: string
+  // estágio inicial (id interno). Ausente = primeiro estágio do board.
+  @IsOptional() @IsString() stageId?: string
 
   @IsOptional()
   @IsIn(['Quente', 'Morno', 'Frio', 'Sem classificação'])

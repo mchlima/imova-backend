@@ -74,12 +74,13 @@ model Pipeline {
 }
 
 model Stage {
-  id         String   @id @default(uuid())
+  id         String   @id @default(uuid()) // id interno (FK de Opportunity.stageId)
+  // id estável para integrações externas referenciarem o estágio (não muda ao renomear)
+  externalId String   @unique @default(uuid())
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   pipelineId String
   pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
-  key        String // 'lead', 'contatar'... (casa com Opportunity.status)
   label      String
   color      String   @default("") // cor do badge (front lê do dado)
   order      Int      @default(0)
@@ -88,7 +89,8 @@ model Stage {
   isLost     Boolean  @default(false)
   createdAt  DateTime @default(now())
 
-  @@unique([tenantId, pipelineId, key])
+  opportunities Opportunity[]
+
   @@index([tenantId])
   @@map("stages")
 }
@@ -277,9 +279,11 @@ model Opportunity {
   tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   // Núcleo genérico: SEM campos de domínio. Localização/valor de interesse e tudo
   // que vem do simulador são CAMPOS PERSONALIZADOS (fields JSONB) — ADR 0001/0002.
-  status        String   @default("Lead")
+  // estágio atual do funil (FK). Nullable p/ migração; o código sempre seta em novas.
+  stageId       String?
+  stage         Stage?   @relation(fields: [stageId], references: [id])
   boardOrder    Float    @default(0) // ordem manual no kanban (asc = topo)
-  lossReason    String   @default("") // motivo quando status = Perdido
+  lossReason    String   @default("") // motivo quando o estágio é de perda
   temperature   String   @default("Sem classificação")
   source        String   @default("") // origem do lead (ex.: 'simulador') — genérico
   // qualificação e preferências agora são CAMPOS PERSONALIZADOS (fields JSONB) — ADR 0001
@@ -307,6 +311,7 @@ model Opportunity {
   @@index([contactId])
   @@index([tenantId])
   @@index([pipelineId])
+  @@index([stageId])
   @@map("opportunities")
 }
 
