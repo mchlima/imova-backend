@@ -70,6 +70,13 @@ export class OpportunitiesController {
     return this.opportunities.moveToPipeline(id, dto.pipelineId, dto.assigneeIds)
   }
 
+  // Exclui a oportunidade (atividades caem em cascata; o contato permanece).
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  remove(@Param('id') id: string) {
+    return this.opportunities.remove(id)
+  }
+
   // ── atividades / histórico (CRM) ──
   @Post(':id/activities')
   @UseGuards(JwtAuthGuard)

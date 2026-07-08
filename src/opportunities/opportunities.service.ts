@@ -225,6 +225,14 @@ export class OpportunitiesService {
     )
   }
 
+  // Exclui a oportunidade. As atividades caem por cascata (onDelete: Cascade);
+  // o contato NÃO é removido (1 contato → N oportunidades ao longo do tempo).
+  async remove(id: string) {
+    await this.ensureExists(id)
+    await this.prisma.opportunity.delete({ where: { id } })
+    return { ok: true }
+  }
+
   async update(id: string, dto: UpdateOpportunityDto) {
     const tenantId = await this.ensureExists(id)
     const { fields: fieldsPatch, assigneeIds, ...rest } = dto
