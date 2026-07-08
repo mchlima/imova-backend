@@ -86,8 +86,27 @@ export class PipelinesService {
   }
 
   async updateStage(id: string, dto: UpdateStageDto) {
-    await this.ensureStage(id)
-    return this.prisma.stage.update({ where: { id }, data: dto })
+    const stage = await this.ensureStage(id)
+    const data: Record<string, unknown> = { ...dto }
+    if (dto.key !== undefined) {
+      const key = dto.key.trim()
+      if (!key) throw new BadRequestException('A key não pode ser vazia.')
+      if (key !== stage.key) {
+        // key única no tenant (convenção) — evita colisão no lookup global por status
+        const dup = await this.prisma.stage.findFirst({
+          where: { tenantId: stage.tenantId, key, id: { not: id } },
+          select: { id: true },
+        })
+        if (dup) throw new BadRequestException('Já existe um estágio com essa key.')
+        // migra o status das oportunidades deste estágio (mesmo pipeline) p/ a nova key
+        await this.prisma.opportunity.updateMany({
+          where: { tenantId: stage.tenantId, pipelineId: stage.pipelineId, status: stage.key },
+          data: { status: key },
+        })
+      }
+      data.key = key
+    }
+    return this.prisma.stage.update({ where: { id }, data })
   }
 
   // Exclui um estágio. Se houver oportunidades nele, migra-as para `moveToStageId`
