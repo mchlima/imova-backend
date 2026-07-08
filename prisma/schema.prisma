@@ -45,6 +45,7 @@ model Tenant {
   activities    OpportunityActivity[]
   opportunityEvents OpportunityEvent[]
   opportunityComments OpportunityComment[]
+  documents     Document[]
   pipelines     Pipeline[]
   stages        Stage[]
   fieldSections    FieldSection[]
@@ -311,6 +312,8 @@ model Opportunity {
   events     OpportunityEvent[]
   // comentários internos da equipe (aba "Comentários")
   comments   OpportunityComment[]
+  // documentos anexados no contexto desta oportunidade (o dono é o contato)
+  documents  Document[]
   createdAt  DateTime             @default(now())
   updatedAt  DateTime             @updatedAt
 
@@ -341,6 +344,7 @@ model Contact {
   residenceNeighborhood String @default("")
   residencePostalCode   String @default("") // CEP
   opportunities    Opportunity[]
+  documents        Document[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -425,6 +429,33 @@ model OpportunityComment {
   @@index([opportunityId])
   @@index([tenantId])
   @@map("opportunity_comments")
+}
+
+// Documento (arquivo) do lead — armazenado no R2 privado (bucket imova-leads), acessível
+// só via URL pré-assinada gerada pelo backend. O DONO é o CONTATO (reutilizável entre
+// oportunidades); `opportunityId` (nullable) registra a oportunidade que originou o envio.
+// Excluir a oportunidade NÃO apaga o documento (SetNull); excluir o contato apaga (Cascade).
+model Document {
+  id            String       @id @default(uuid())
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contactId     String
+  contact       Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  category      String   @default("outro") // rg_cpf | comprovante_renda | ... | outro
+  categoryLabel String   @default("") // texto livre quando category = 'outro'
+  fileName      String // nome original do arquivo (exibição/download)
+  storageKey    String // chave do objeto no R2 (privado)
+  mimeType      String   @default("")
+  size          Int      @default(0)
+  uploadedBy    String   @default("") // nome do usuário que enviou
+  createdAt     DateTime @default(now())
+
+  @@index([contactId])
+  @@index([opportunityId])
+  @@index([tenantId])
+  @@map("documents")
 }
 
 // Base de localidades (IBGE) com taxas estimadas.

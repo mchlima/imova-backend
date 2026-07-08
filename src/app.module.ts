@@ -13,6 +13,7 @@ import { FieldsModule } from './fields/fields.module'
 import { ContactsModule } from './contacts/contacts.module'
 import { LocationsModule } from './locations/locations.module'
 import { CmsModule } from './cms/cms.module'
+import { DocumentsModule } from './documents/documents.module'
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { CmsModule } from './cms/cms.module'
     ContactsModule,
     LocationsModule,
     CmsModule,
+    DocumentsModule,
   ],
 })
 export class AppModule {}
