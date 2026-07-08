@@ -11,6 +11,7 @@ import {
 import { OpportunitiesService } from './opportunities.service'
 import { UpdateOpportunityDto } from './dto/update-opportunity.dto'
 import { CreateOpportunityDto } from './dto/create-opportunity.dto'
+import { MovePipelineDto } from './dto/move-pipeline.dto'
 import { ReorderDto } from './dto/reorder.dto'
 import { CreateActivityDto } from './dto/create-activity.dto'
 import { UpdateActivityDto } from './dto/update-activity.dto'
@@ -60,6 +61,13 @@ export class OpportunitiesController {
   @UseGuards(JwtAuthGuard)
   update(@Param('id') id: string, @Body() dto: UpdateOpportunityDto) {
     return this.opportunities.update(id, dto)
+  }
+
+  // Move a oportunidade para outro board (ex.: "enviar para o board da corretora").
+  @Post(':id/move-pipeline')
+  @UseGuards(JwtAuthGuard)
+  moveToPipeline(@Param('id') id: string, @Body() dto: MovePipelineDto) {
+    return this.opportunities.moveToPipeline(id, dto.pipelineId, dto.assigneeIds)
   }
 
   // ── atividades / histórico (CRM) ──

@@ -39,7 +39,10 @@ export class CreateOpportunityDto {
   // origem: 'manual' (padrão) ou 'import' para a base trazida de fora.
   @IsOptional() @IsString() source?: string
 
-  // estágio inicial (key). Ausente = primeiro estágio do funil.
+  // board (pipeline) de destino. Ausente = board padrão (Captação).
+  @IsOptional() @IsString() pipelineId?: string
+
+  // estágio inicial (key). Ausente = primeiro estágio do board.
   @IsOptional() @IsString() stageKey?: string
 
   @IsOptional()

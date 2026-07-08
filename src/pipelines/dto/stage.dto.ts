@@ -16,6 +16,8 @@ export class CreateStageDto {
   @IsOptional() @IsBoolean() inKanban?: boolean
   @IsOptional() @IsBoolean() isWon?: boolean
   @IsOptional() @IsBoolean() isLost?: boolean
+  // board (pipeline) onde criar o estágio. Ausente = board padrão.
+  @IsOptional() @IsString() pipelineId?: string
 }
 
 export class UpdateStageDto {

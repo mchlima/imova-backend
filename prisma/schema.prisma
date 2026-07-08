@@ -25,6 +25,8 @@ model User {
   posts Post[]
   // oportunidades pelas quais este usuário é responsável (M2M) — conceito genérico de CRM
   assignedOpportunities Opportunity[] @relation("OpportunityAssignees")
+  // boards (pipelines) dos quais este usuário é o dono — ownership leve, sem bloquear acesso
+  ownedPipelines Pipeline[] @relation("PipelineOwner")
 
   @@map("users")
 }
@@ -59,7 +61,12 @@ model Pipeline {
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   key       String   @default("default")
   label     String
+  order     Int      @default(0) // ordem dos boards (asc)
+  // dono do board (ownership leve): abre por padrão pra esta pessoa, mas não bloqueia acesso.
+  ownerUserId String?
+  owner       User?   @relation("PipelineOwner", fields: [ownerUserId], references: [id])
   stages    Stage[]
+  opportunities Opportunity[]
   createdAt DateTime @default(now())
 
   @@unique([tenantId, key])
@@ -281,6 +288,11 @@ model Opportunity {
   // { sectionKey: { fieldKey: valor } }. Simulador é a seção 'simulador'.
   fields        Json     @default("{}")
 
+  // board (pipeline) onde a oportunidade vive. Nullable p/ migração aditiva; o
+  // backfill preenche as existentes e o código sempre seta em novas oportunidades.
+  pipelineId String?
+  pipeline   Pipeline? @relation(fields: [pipelineId], references: [id])
+
   // contato dono da oportunidade (1 contato → N oportunidades)
   contactId String
   contact   Contact @relation(fields: [contactId], references: [id])
@@ -294,6 +306,7 @@ model Opportunity {
 
   @@index([contactId])
   @@index([tenantId])
+  @@index([pipelineId])
   @@map("opportunities")
 }
 

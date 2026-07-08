@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { TenantService } from '../tenant/tenant.service'
 import { CreateStageDto, ReorderStagesDto, UpdateStageDto } from './dto/stage.dto'
+import { UpdatePipelineDto } from './dto/pipeline.dto'
 
 @Injectable()
 export class PipelinesService {
@@ -10,7 +11,35 @@ export class PipelinesService {
     private readonly tenant: TenantService,
   ) {}
 
-  // Estágios do funil do tenant atual, na ordem do funil.
+  // Boards (pipelines) do tenant, na ordem. Cada board tem seus próprios estágios.
+  async pipelines() {
+    const tenantId = await this.tenant.currentId()
+    return this.prisma.pipeline.findMany({
+      where: { tenantId },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, key: true, label: true, order: true, ownerUserId: true },
+    })
+  }
+
+  // Atualiza um board (rótulo, ordem, dono). ownerUserId vazio/null desatribui.
+  async updatePipeline(id: string, dto: UpdatePipelineDto) {
+    const tenantId = await this.tenant.currentId()
+    const pipeline = await this.prisma.pipeline.findFirst({
+      where: { id, tenantId },
+      select: { id: true },
+    })
+    if (!pipeline) throw new NotFoundException('Board não encontrado.')
+    const data: Record<string, unknown> = {}
+    if (dto.label !== undefined) data.label = dto.label
+    if (dto.order !== undefined) data.order = dto.order
+    if (dto.ownerUserId !== undefined) data.ownerUserId = dto.ownerUserId || null
+    await this.prisma.pipeline.update({ where: { id }, data })
+    return this.pipelines()
+  }
+
+  // Estágios do tenant, na ordem. Devolve TODOS os boards (cada estágio traz seu
+  // pipelineId), pra o front agrupar as colunas por board e manter o lookup global
+  // de cor/label por key.
   async stages() {
     const tenantId = await this.tenant.currentId()
     return this.prisma.stage.findMany({ where: { tenantId }, orderBy: { order: 'asc' } })
@@ -18,8 +47,10 @@ export class PipelinesService {
 
   async createStage(dto: CreateStageDto) {
     const tenantId = await this.tenant.currentId()
-    const pipeline = await this.defaultPipeline(tenantId)
-    const order = dto.order ?? (await this.nextOrder(tenantId))
+    const pipeline = dto.pipelineId
+      ? await this.ensurePipeline(tenantId, dto.pipelineId)
+      : await this.defaultPipeline(tenantId)
+    const order = dto.order ?? (await this.nextOrder(tenantId, pipeline.id))
     return this.prisma.stage.create({
       data: {
         tenantId,
@@ -56,18 +87,28 @@ export class PipelinesService {
     return { ok: true }
   }
 
+  // board padrão: o primeiro por ordem (não por key — 'corretora' < 'default').
   private async defaultPipeline(tenantId: string) {
-    let pipeline = await this.prisma.pipeline.findFirst({ where: { tenantId }, orderBy: { key: 'asc' } })
+    let pipeline = await this.prisma.pipeline.findFirst({
+      where: { tenantId },
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+    })
     if (!pipeline) {
       pipeline = await this.prisma.pipeline.create({
-        data: { tenantId, key: 'default', label: 'Funil de vendas' },
+        data: { tenantId, key: 'default', label: 'Captação' },
       })
     }
     return pipeline
   }
-  private async nextOrder(tenantId: string) {
+  private async ensurePipeline(tenantId: string, pipelineId: string) {
+    const pipeline = await this.prisma.pipeline.findFirst({ where: { id: pipelineId, tenantId } })
+    if (!pipeline) throw new NotFoundException('Board não encontrado.')
+    return pipeline
+  }
+  // próxima ordem dentro de um board (estágios são ordenados por board).
+  private async nextOrder(tenantId: string, pipelineId: string) {
     const last = await this.prisma.stage.findFirst({
-      where: { tenantId },
+      where: { tenantId, pipelineId },
       orderBy: { order: 'desc' },
       select: { order: true },
     })

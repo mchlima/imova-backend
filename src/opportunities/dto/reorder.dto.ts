@@ -1,14 +1,13 @@
 import { Type } from 'class-transformer'
-import { IsArray, IsIn, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator'
+import { IsArray, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator'
 
 // Item de reordenação do kanban: nova posição (boardOrder) e, opcionalmente,
-// nova coluna (status) quando o card é movido entre colunas.
+// nova coluna (status) quando o card é movido entre colunas. O status é uma key de
+// estágio (dado por board), validada contra o funil no service — não com lista fixa.
 class ReorderItem {
   @IsString() id!: string
 
-  @IsOptional()
-  @IsIn(['Lead', 'Contatar', 'Qualificar', 'Repassado', 'Perdido'])
-  status?: string
+  @IsOptional() @IsString() status?: string
 
   @IsNumber() boardOrder!: number
 }
