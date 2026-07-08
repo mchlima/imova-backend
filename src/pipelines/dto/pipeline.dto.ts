@@ -5,6 +5,9 @@ import { IsInt, IsOptional, IsString } from 'class-validator'
 export class UpdatePipelineDto {
   @IsOptional() @IsString() label?: string
 
+  // identificador do board na URL/rota; único por tenant.
+  @IsOptional() @IsString() key?: string
+
   @IsOptional() @IsInt() order?: number
 
   // dono do board; string vazia ou null desatribui.

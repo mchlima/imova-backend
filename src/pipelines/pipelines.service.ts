@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { TenantService } from '../tenant/tenant.service'
 import { CreateStageDto, ReorderStagesDto, UpdateStageDto } from './dto/stage.dto'
@@ -21,7 +21,7 @@ export class PipelinesService {
     })
   }
 
-  // Atualiza um board (rótulo, ordem, dono). ownerUserId vazio/null desatribui.
+  // Atualiza um board (rótulo, key, ordem, dono). ownerUserId vazio/null desatribui.
   async updatePipeline(id: string, dto: UpdatePipelineDto) {
     const tenantId = await this.tenant.currentId()
     const pipeline = await this.prisma.pipeline.findFirst({
@@ -33,6 +33,16 @@ export class PipelinesService {
     if (dto.label !== undefined) data.label = dto.label
     if (dto.order !== undefined) data.order = dto.order
     if (dto.ownerUserId !== undefined) data.ownerUserId = dto.ownerUserId || null
+    if (dto.key !== undefined) {
+      const key = dto.key.trim()
+      if (!key) throw new BadRequestException('A key não pode ser vazia.')
+      const dup = await this.prisma.pipeline.findFirst({
+        where: { tenantId, key, id: { not: id } },
+        select: { id: true },
+      })
+      if (dup) throw new BadRequestException('Já existe um pipeline com essa key.')
+      data.key = key
+    }
     await this.prisma.pipeline.update({ where: { id }, data })
     return this.pipelines()
   }
