@@ -43,6 +43,7 @@ model Tenant {
   contacts      Contact[]
   opportunities Opportunity[]
   activities    OpportunityActivity[]
+  opportunityEvents OpportunityEvent[]
   pipelines     Pipeline[]
   stages        Stage[]
   fieldSections    FieldSection[]
@@ -305,6 +306,8 @@ model Opportunity {
   assignees User[] @relation("OpportunityAssignees")
 
   activities OpportunityActivity[]
+  // log imutável de alterações/movimentações (aba "Histórico") — ADR 0006
+  events     OpportunityEvent[]
   createdAt  DateTime             @default(now())
   updatedAt  DateTime             @updatedAt
 
@@ -378,6 +381,28 @@ model OpportunityActivity {
   @@index([dueAt])
   @@index([tenantId])
   @@map("opportunity_activities")
+}
+
+// Log IMUTÁVEL de alterações/movimentações da oportunidade (aba "Histórico"). Ao
+// contrário de OpportunityActivity (manual, editável), estes eventos são gerados pelo
+// sistema em cada mutação. `data` guarda o payload por tipo (from/to, rótulos etc.),
+// com rótulos "congelados" no momento (robusto a renome/exclusão de estágio/pipeline).
+// type: created | stage_changed | won | lost | pipeline_changed | assignees_changed
+//     | temperature_changed | fields_updated
+model OpportunityEvent {
+  id            String      @id @default(uuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  type      String
+  data      Json     @default("{}")
+  author    String   @default("") // nome do usuário; "Sistema" para ingestão/captura
+  createdAt DateTime @default(now())
+
+  @@index([opportunityId])
+  @@index([tenantId])
+  @@map("opportunity_events")
 }
 
 // Base de localidades (IBGE) com taxas estimadas.

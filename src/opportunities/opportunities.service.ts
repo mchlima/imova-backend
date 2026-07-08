@@ -12,6 +12,8 @@ const withRelations = {
   contact: { include: { channels: { orderBy: { createdAt: 'asc' as const } } } },
   assignees: { select: { id: true, name: true }, orderBy: { name: 'asc' as const } },
   activities: { orderBy: { createdAt: 'desc' as const } },
+  // histórico de alterações/movimentações (mais recente primeiro)
+  events: { orderBy: { createdAt: 'desc' as const } },
 }
 
 // Payload genérico de ingestão (CRM core — sem regra de domínio do Meu Revelar).
@@ -54,7 +56,7 @@ export class OpportunitiesService {
     // sanitiza os campos aninhados contra as definições (ignora seção/campo desconhecido)
     const map = await this.fieldTypeMap(tenantId)
     const fields = sanitizeNested(map, input.fields ?? {})
-    return this.prisma.opportunity.create({
+    const created = await this.prisma.opportunity.create({
       data: {
         tenantId,
         pipelineId,
@@ -65,11 +67,13 @@ export class OpportunitiesService {
       },
       include: withRelations,
     })
+    await this.saveEvents(tenantId, created.id, [{ type: 'created', data: { source: input.source ?? '' } }], 'Sistema')
+    return created
   }
 
   // Criação manual no admin: usa um contato existente (contactId) OU cria/dedup
   // um novo a partir dos dados enviados. Origem padrão = 'manual'.
-  async createManual(dto: CreateOpportunityDto) {
+  async createManual(dto: CreateOpportunityDto, author: string) {
     const tenantId = await this.tenant.currentId()
 
     let contactId = dto.contactId
@@ -94,7 +98,7 @@ export class OpportunitiesService {
     const stageId = dto.stageId || (await this.defaultStageId(tenantId, pipeline.id))
     const map = await this.fieldTypeMap(tenantId)
     const fields = sanitizeNested(map, dto.fields ?? {})
-    return this.prisma.opportunity.create({
+    const created = await this.prisma.opportunity.create({
       data: {
         tenantId,
         pipelineId: pipeline.id,
@@ -109,6 +113,8 @@ export class OpportunitiesService {
       },
       include: withRelations,
     })
+    await this.saveEvents(tenantId, created.id, [{ type: 'created', data: { source: dto.source ?? 'manual' } }], author)
+    return created
   }
 
   // Acha-ou-cria o contato do tenant por e-mail (dedup), atualizando o nome e
@@ -181,11 +187,15 @@ export class OpportunitiesService {
 
   // Move a oportunidade para outro board: cai no 1º estágio do destino, no topo da
   // coluna, e opcionalmente (re)atribui responsáveis. É o "enviar para o board da corretora".
-  async moveToPipeline(id: string, pipelineId: string, assigneeIds?: string[]) {
+  async moveToPipeline(id: string, pipelineId: string, assigneeIds: string[] | undefined, author: string) {
     const tenantId = await this.ensureExists(id)
+    const before = await this.prisma.opportunity.findUnique({
+      where: { id },
+      select: { pipelineId: true, pipeline: { select: { label: true } } },
+    })
     const pipeline = await this.ensurePipeline(tenantId, pipelineId)
     const stageId = await this.defaultStageId(tenantId, pipeline.id)
-    return this.prisma.opportunity.update({
+    const updated = await this.prisma.opportunity.update({
       where: { id },
       data: {
         pipelineId: pipeline.id,
@@ -195,6 +205,23 @@ export class OpportunitiesService {
       },
       include: withRelations,
     })
+    await this.saveEvents(
+      tenantId,
+      id,
+      [
+        {
+          type: 'pipeline_changed',
+          data: {
+            fromPipelineId: before?.pipelineId ?? null,
+            fromPipelineLabel: before?.pipeline?.label ?? null,
+            toPipelineId: pipeline.id,
+            toPipelineLabel: pipeline.label,
+          },
+        },
+      ],
+      author,
+    )
+    return updated
   }
 
   async findAll() {
@@ -218,9 +245,18 @@ export class OpportunitiesService {
 
   // Reordenação do kanban: atualiza boardOrder (e status, se mudou de coluna) em lote.
   // updateMany com filtro de tenant garante que só se mexe no que é do tenant.
-  async reorder(items: { id: string; stageId?: string; boardOrder: number }[]) {
+  async reorder(items: { id: string; stageId?: string; boardOrder: number }[], author: string) {
     const tenantId = await this.tenant.currentId()
-    return this.prisma.$transaction(
+    // estágios atuais dos itens que trazem stageId — p/ detectar mudança de coluna
+    const withStage = items.filter((i) => i.stageId)
+    const before = withStage.length
+      ? await this.prisma.opportunity.findMany({
+          where: { id: { in: withStage.map((i) => i.id) }, tenantId },
+          select: { id: true, stageId: true },
+        })
+      : []
+    const beforeMap = new Map(before.map((o) => [o.id, o.stageId]))
+    const result = await this.prisma.$transaction(
       items.map((i) =>
         this.prisma.opportunity.updateMany({
           where: { id: i.id, tenantId },
@@ -228,6 +264,20 @@ export class OpportunitiesService {
         }),
       ),
     )
+    // registra mudança de estágio (uma por card que trocou de coluna)
+    const evs: { opportunityId: string; type: string; data: Prisma.InputJsonValue }[] = []
+    for (const i of withStage) {
+      const from = beforeMap.get(i.id) ?? null
+      if (from === i.stageId) continue
+      const e = await this.stageChangeEvent(from, i.stageId!, undefined)
+      if (e) evs.push({ opportunityId: i.id, type: e.type, data: e.data })
+    }
+    if (evs.length) {
+      await this.prisma.opportunityEvent.createMany({
+        data: evs.map((e) => ({ tenantId, opportunityId: e.opportunityId, type: e.type, data: e.data, author })),
+      })
+    }
+    return result
   }
 
   // Exclui a oportunidade. As atividades caem por cascata (onDelete: Cascade);
@@ -238,19 +288,55 @@ export class OpportunitiesService {
     return { ok: true }
   }
 
-  async update(id: string, dto: UpdateOpportunityDto) {
+  async update(id: string, dto: UpdateOpportunityDto, author: string) {
     const tenantId = await this.ensureExists(id)
+    // estado ANTES da alteração (para diffar e registrar no histórico)
+    const before = await this.prisma.opportunity.findUnique({
+      where: { id },
+      select: {
+        stageId: true,
+        temperature: true,
+        assignees: { select: { id: true, name: true } },
+      },
+    })
     const { fields: fieldsPatch, assigneeIds, ...rest } = dto
     const data: Record<string, unknown> = { ...rest }
     // patch parcial dos campos personalizados: mescla no JSONB e coage por tipo
+    let changedFieldLabels: string[] = []
     if (fieldsPatch && typeof fieldsPatch === 'object') {
-      data.fields = await this.mergeFields(tenantId, id, fieldsPatch)
+      const { merged, changed } = await this.mergeFields(tenantId, id, fieldsPatch)
+      data.fields = merged
+      changedFieldLabels = changed
     }
     // responsáveis: substitui o conjunto inteiro pelo enviado (set)
     if (assigneeIds) {
       data.assignees = { set: assigneeIds.map((uid) => ({ id: uid })) }
     }
-    return this.prisma.opportunity.update({ where: { id }, data, include: withRelations })
+    const updated = await this.prisma.opportunity.update({ where: { id }, data, include: withRelations })
+
+    // ── histórico ──
+    const events: { type: string; data: Prisma.InputJsonValue }[] = []
+    if (before && dto.stageId !== undefined && dto.stageId !== before.stageId) {
+      const e = await this.stageChangeEvent(before.stageId, dto.stageId, dto.lossReason)
+      if (e) events.push(e)
+    }
+    if (before && dto.temperature !== undefined && dto.temperature !== before.temperature) {
+      events.push({ type: 'temperature_changed', data: { from: before.temperature, to: dto.temperature } })
+    }
+    if (before && assigneeIds) {
+      const beforeIds = new Set(before.assignees.map((a) => a.id))
+      const addedIds = assigneeIds.filter((x) => !beforeIds.has(x))
+      const removed = before.assignees.filter((a) => !assigneeIds.includes(a.id))
+      if (addedIds.length || removed.length) {
+        const added = updated.assignees.filter((a) => addedIds.includes(a.id)).map((a) => a.name)
+        events.push({ type: 'assignees_changed', data: { added, removed: removed.map((a) => a.name) } })
+      }
+    }
+    if (changedFieldLabels.length) {
+      events.push({ type: 'fields_updated', data: { fields: changedFieldLabels } })
+    }
+    await this.saveEvents(tenantId, id, events, author)
+    return updated
   }
 
   // Mapa sectionKey → { fieldKey → type } das definições ativas do tenant.
@@ -264,18 +350,75 @@ export class OpportunitiesService {
     return map
   }
 
+  // Mapa 'sectionKey.fieldKey' → label (para descrever campos alterados no histórico).
+  private async fieldLabelMap(tenantId: string) {
+    const defs = await this.prisma.fieldDefinition.findMany({
+      where: { tenantId, archived: false },
+      select: { key: true, label: true, section: { select: { key: true } } },
+    })
+    const map: Record<string, string> = {}
+    for (const d of defs) map[`${d.section.key}.${d.key}`] = d.label
+    return map
+  }
+
   // Mescla um patch parcial aninhado em Opportunity.fields, coagindo por tipo e
   // ignorando seção/campo sem definição. Merge por seção (não substitui a seção toda).
+  // Retorna também os RÓTULOS dos campos que realmente mudaram (para o histórico).
   private async mergeFields(tenantId: string, id: string, patch: Record<string, unknown>) {
     const map = await this.fieldTypeMap(tenantId)
+    const labels = await this.fieldLabelMap(tenantId)
     const sanitized = sanitizeNested(map, patch as Record<string, Record<string, unknown>>)
     const opp = await this.prisma.opportunity.findUnique({ where: { id }, select: { fields: true } })
     const current = (opp?.fields as Record<string, Record<string, unknown>>) ?? {}
     const merged: Record<string, Record<string, unknown>> = { ...current }
+    const changed: string[] = []
     for (const [sk, fields] of Object.entries(sanitized)) {
       merged[sk] = { ...(current[sk] ?? {}), ...fields }
+      for (const [fk, v] of Object.entries(fields)) {
+        const cur = current[sk]?.[fk]
+        if (JSON.stringify(cur ?? null) !== JSON.stringify(v ?? null)) {
+          changed.push(labels[`${sk}.${fk}`] ?? fk)
+        }
+      }
     }
-    return merged
+    return { merged, changed }
+  }
+
+  // ── histórico (OpportunityEvent) ──
+  // Classifica uma mudança de estágio em won/lost/stage_changed, com rótulos congelados.
+  private async stageChangeEvent(fromStageId: string | null, toStageId: string, lossReason?: string) {
+    if (fromStageId === toStageId) return null
+    const [from, to] = await Promise.all([
+      fromStageId
+        ? this.prisma.stage.findUnique({ where: { id: fromStageId }, select: { label: true } })
+        : null,
+      this.prisma.stage.findUnique({
+        where: { id: toStageId },
+        select: { label: true, isWon: true, isLost: true },
+      }),
+    ])
+    const data: Record<string, unknown> = {
+      fromStageId,
+      toStageId,
+      fromStageLabel: from?.label ?? null,
+      toStageLabel: to?.label ?? null,
+    }
+    if (to?.isWon) return { type: 'won', data: data as Prisma.InputJsonValue }
+    if (to?.isLost) return { type: 'lost', data: { ...data, lossReason: lossReason ?? '' } as Prisma.InputJsonValue }
+    return { type: 'stage_changed', data: data as Prisma.InputJsonValue }
+  }
+
+  // Persiste uma lista de eventos (no-op se vazia).
+  private async saveEvents(
+    tenantId: string,
+    opportunityId: string,
+    events: { type: string; data: Prisma.InputJsonValue }[],
+    author: string,
+  ) {
+    if (!events.length) return
+    await this.prisma.opportunityEvent.createMany({
+      data: events.map((e) => ({ tenantId, opportunityId, type: e.type, data: e.data, author: author || '' })),
+    })
   }
 
   // Atividades pendentes de todas as oportunidades (página de Follow-up).

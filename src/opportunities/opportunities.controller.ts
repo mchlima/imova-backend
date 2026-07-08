@@ -33,8 +33,8 @@ export class OpportunitiesController {
   // Criação manual no admin (contato existente ou novo). Origem padrão = 'manual'.
   @Post()
   @UseGuards(JwtAuthGuard)
-  create(@Body() dto: CreateOpportunityDto) {
-    return this.opportunities.createManual(dto)
+  create(@Body() dto: CreateOpportunityDto, @CurrentUser() user: SafeUser) {
+    return this.opportunities.createManual(dto, user.name)
   }
 
   // Agenda de follow-up: atividades pendentes de todas as oportunidades.
@@ -53,21 +53,21 @@ export class OpportunitiesController {
   // Reordenação do kanban (em lote) — precisa vir ANTES de @Patch(':id').
   @Patch('reorder')
   @UseGuards(JwtAuthGuard)
-  reorder(@Body() dto: ReorderDto) {
-    return this.opportunities.reorder(dto.items)
+  reorder(@Body() dto: ReorderDto, @CurrentUser() user: SafeUser) {
+    return this.opportunities.reorder(dto.items, user.name)
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  update(@Param('id') id: string, @Body() dto: UpdateOpportunityDto) {
-    return this.opportunities.update(id, dto)
+  update(@Param('id') id: string, @Body() dto: UpdateOpportunityDto, @CurrentUser() user: SafeUser) {
+    return this.opportunities.update(id, dto, user.name)
   }
 
   // Move a oportunidade para outro board (ex.: "enviar para o board da corretora").
   @Post(':id/move-pipeline')
   @UseGuards(JwtAuthGuard)
-  moveToPipeline(@Param('id') id: string, @Body() dto: MovePipelineDto) {
-    return this.opportunities.moveToPipeline(id, dto.pipelineId, dto.assigneeIds)
+  moveToPipeline(@Param('id') id: string, @Body() dto: MovePipelineDto, @CurrentUser() user: SafeUser) {
+    return this.opportunities.moveToPipeline(id, dto.pipelineId, dto.assigneeIds, user.name)
   }
 
   // Exclui a oportunidade (atividades caem em cascata; o contato permanece).
