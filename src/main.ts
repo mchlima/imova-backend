@@ -14,8 +14,14 @@ async function bootstrap() {
   )
 
   // CORS com credenciais para o frontend Nuxt enviar/receber o cookie de sessão.
+  // CORS_ORIGIN aceita múltiplas origens separadas por vírgula (ex.: apex + www).
+  const corsOrigins = config
+    .get<string>('CORS_ORIGIN', 'http://localhost:3100')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
   app.enableCors({
-    origin: config.get<string>('CORS_ORIGIN', 'http://localhost:3100'),
+    origin: corsOrigins,
     credentials: true,
   })
 
