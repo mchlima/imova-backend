@@ -292,6 +292,9 @@ export class OpportunitiesService {
   async addActivity(id: string, dto: CreateActivityDto, author: string) {
     const tenantId = await this.ensureExists(id)
     const done = dto.done ?? false
+    const dueAt = dto.dueAt ? new Date(dto.dueAt) : null
+    // atividade passada registrada como concluída: aconteceu na data escolhida (dueAt),
+    // não "agora" — então doneAt = dueAt. Nota/registro sem data → doneAt = agora.
     await this.prisma.opportunityActivity.create({
       data: {
         tenantId,
@@ -299,9 +302,9 @@ export class OpportunitiesService {
         type: dto.type,
         title: dto.title,
         notes: dto.notes ?? '',
-        dueAt: dto.dueAt ? new Date(dto.dueAt) : null,
+        dueAt,
         done,
-        doneAt: done ? new Date() : null,
+        doneAt: done ? (dueAt ?? new Date()) : null,
         author,
       },
     })
