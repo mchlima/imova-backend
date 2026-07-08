@@ -52,7 +52,16 @@ export class PipelinesService {
   // de cor/label por key.
   async stages() {
     const tenantId = await this.tenant.currentId()
-    return this.prisma.stage.findMany({ where: { tenantId }, orderBy: { order: 'asc' } })
+    const stages = await this.prisma.stage.findMany({ where: { tenantId }, orderBy: { order: 'asc' } })
+    // nº de oportunidades por (pipeline, status) — usado na config (delete com migração)
+    const grouped = await this.prisma.opportunity.groupBy({
+      by: ['pipelineId', 'status'],
+      where: { tenantId },
+      _count: { _all: true },
+    })
+    const countOf = (pipelineId: string, key: string) =>
+      grouped.find((g) => g.pipelineId === pipelineId && g.status === key)?._count._all ?? 0
+    return stages.map((s) => ({ ...s, oppCount: countOf(s.pipelineId, s.key) }))
   }
 
   async createStage(dto: CreateStageDto) {
@@ -81,10 +90,29 @@ export class PipelinesService {
     return this.prisma.stage.update({ where: { id }, data: dto })
   }
 
-  async deleteStage(id: string) {
-    await this.ensureStage(id)
+  // Exclui um estágio. Se houver oportunidades nele, migra-as para `moveToStageId`
+  // (mesmo pipeline) antes de apagar — evita oportunidades órfãs (status sem coluna).
+  async deleteStage(id: string, moveToStageId?: string) {
+    const stage = await this.ensureStage(id)
+    const where = {
+      tenantId: stage.tenantId,
+      pipelineId: stage.pipelineId,
+      status: stage.key,
+    }
+    const count = await this.prisma.opportunity.count({ where })
+    if (count > 0) {
+      if (!moveToStageId)
+        throw new BadRequestException('Há oportunidades neste estágio. Informe o estágio de destino.')
+      const target = await this.prisma.stage.findFirst({
+        where: { id: moveToStageId, tenantId: stage.tenantId, pipelineId: stage.pipelineId },
+        select: { id: true, key: true },
+      })
+      if (!target || target.id === id)
+        throw new BadRequestException('Estágio de destino inválido.')
+      await this.prisma.opportunity.updateMany({ where, data: { status: target.key } })
+    }
     await this.prisma.stage.delete({ where: { id } })
-    return { ok: true }
+    return { ok: true, moved: count }
   }
 
   async reorderStages(dto: ReorderStagesDto) {
@@ -126,8 +154,11 @@ export class PipelinesService {
   }
   private async ensureStage(id: string) {
     const tenantId = await this.tenant.currentId()
-    const s = await this.prisma.stage.findFirst({ where: { id, tenantId }, select: { id: true } })
+    const s = await this.prisma.stage.findFirst({
+      where: { id, tenantId },
+      select: { id: true, tenantId: true, pipelineId: true, key: true },
+    })
     if (!s) throw new NotFoundException('Estágio não encontrado.')
-    return tenantId
+    return s
   }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { PipelinesService } from './pipelines.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { CreateStageDto, ReorderStagesDto, UpdateStageDto } from './dto/stage.dto'
@@ -39,8 +39,9 @@ export class PipelinesController {
   updateStage(@Param('id') id: string, @Body() dto: UpdateStageDto) {
     return this.pipelines.updateStage(id, dto)
   }
+  // moveTo (opcional): estágio de destino p/ migrar as oportunidades antes de excluir.
   @Delete('stages/:id')
-  deleteStage(@Param('id') id: string) {
-    return this.pipelines.deleteStage(id)
+  deleteStage(@Param('id') id: string, @Query('moveTo') moveTo?: string) {
+    return this.pipelines.deleteStage(id, moveTo)
   }
 }
