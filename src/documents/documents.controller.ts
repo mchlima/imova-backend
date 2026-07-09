@@ -46,7 +46,7 @@ export class DocumentsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.documents.remove(id)
+  remove(@Param('id') id: string, @CurrentUser() user: SafeUser) {
+    return this.documents.remove(id, user.name)
   }
 }

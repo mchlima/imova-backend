@@ -72,7 +72,7 @@ export class DocumentsService {
     const storageKey = `${tenantId}/contacts/${dto.contactId}/${randomUUID()}-${safeName}`
     await this.storage.upload(storageKey, file.buffer, file.mimetype)
 
-    return this.prisma.document.create({
+    const doc = await this.prisma.document.create({
       data: {
         tenantId,
         contactId: dto.contactId,
@@ -85,6 +85,11 @@ export class DocumentsService {
       },
       select: publicSelect,
     })
+    // registra no histórico da oportunidade (só quando vinculado a uma)
+    if (dto.opportunityId) {
+      await this.logEvent(tenantId, dto.opportunityId, 'document_added', file.originalname, uploadedBy)
+    }
+    return doc
   }
 
   // Todos os documentos de um contato (reutilizáveis) — o front marca os da oportunidade atual.
@@ -109,15 +114,31 @@ export class DocumentsService {
     return { url }
   }
 
-  async remove(id: string) {
+  async remove(id: string, removedBy: string) {
     const tenantId = await this.tenant.currentId()
     const doc = await this.prisma.document.findFirst({
       where: { id, tenantId },
-      select: { id: true, storageKey: true },
+      select: { id: true, storageKey: true, opportunityId: true, fileName: true },
     })
     if (!doc) throw new NotFoundException('Documento não encontrado.')
     await this.storage.remove(doc.storageKey)
     await this.prisma.document.delete({ where: { id: doc.id } })
+    if (doc.opportunityId) {
+      await this.logEvent(tenantId, doc.opportunityId, 'document_removed', doc.fileName, removedBy)
+    }
     return { ok: true }
+  }
+
+  // Evento no histórico da oportunidade (aba "Histórico") — ADR 0006.
+  private async logEvent(
+    tenantId: string,
+    opportunityId: string,
+    type: string,
+    fileName: string,
+    author: string,
+  ) {
+    await this.prisma.opportunityEvent.create({
+      data: { tenantId, opportunityId, type, data: { fileName }, author: author || '' },
+    })
   }
 }
