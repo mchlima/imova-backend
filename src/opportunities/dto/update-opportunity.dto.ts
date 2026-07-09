@@ -14,6 +14,9 @@ export class UpdateOpportunityDto {
   // motivo da perda (quando o estágio é de perda)
   @IsOptional() @IsString() lossReason?: string
 
+  // descrição livre (markdown) da oportunidade
+  @IsOptional() @IsString() description?: string
+
   // valores dos campos personalizados (patch parcial, mesclado no service)
   @IsOptional() @IsObject() fields?: Record<string, unknown>
 

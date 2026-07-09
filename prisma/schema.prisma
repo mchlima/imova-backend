@@ -289,6 +289,7 @@ model Opportunity {
   lossReason    String   @default("") // motivo quando o estágio é de perda
   temperature   String   @default("Sem classificação")
   source        String   @default("") // origem do lead (ex.: 'simulador') — genérico
+  description   String   @default("") // descrição livre (markdown) da oportunidade
   // qualificação e preferências agora são CAMPOS PERSONALIZADOS (fields JSONB) — ADR 0001
 
   // valores dos campos personalizados, aninhados por seção — ADR 0001
