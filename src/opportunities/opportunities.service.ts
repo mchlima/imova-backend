@@ -8,6 +8,7 @@ import { CreateOpportunityDto } from './dto/create-opportunity.dto'
 import { CreateActivityDto } from './dto/create-activity.dto'
 import { UpdateActivityDto } from './dto/update-activity.dto'
 import { CreateCommentDto, UpdateCommentDto } from './dto/comment.dto'
+import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto'
 
 // Contato (com canais) + responsáveis + histórico/atividades (timeline) em ordem cronológica.
 const withRelations = {
@@ -18,6 +19,8 @@ const withRelations = {
   events: { orderBy: { createdAt: 'desc' as const } },
   // comentários internos (mais antigo no topo, como um chat)
   comments: { orderBy: { createdAt: 'asc' as const } },
+  // checklist de tarefas (mais antiga no topo)
+  tasks: { orderBy: { createdAt: 'asc' as const } },
   // contagem de documentos anexados A ESTA oportunidade (indicador no card)
   _count: { select: { documents: true } },
 }
@@ -515,6 +518,52 @@ export class OpportunitiesService {
     await this.ensureOwnComment(id, commentId, user.id)
     await this.prisma.opportunityComment.delete({ where: { id: commentId } })
     return this.prisma.opportunity.findUnique({ where: { id }, include: withRelations })
+  }
+
+  // ── tarefas (checklist) ──
+  async addTask(id: string, dto: CreateTaskDto) {
+    const tenantId = await this.ensureExists(id)
+    await this.prisma.opportunityTask.create({
+      data: { tenantId, opportunityId: id, title: dto.title.trim() },
+    })
+    return this.prisma.opportunity.findUnique({ where: { id }, include: withRelations })
+  }
+
+  async updateTask(id: string, taskId: string, dto: UpdateTaskDto, author: string) {
+    const { tenantId, task } = await this.ensureTask(id, taskId)
+    const data: Record<string, unknown> = {}
+    if (dto.title !== undefined) data.title = dto.title.trim()
+    const events: { type: string; data: Prisma.InputJsonValue }[] = []
+    // marcar/desmarcar como concluída: seta completedAt e gera evento no histórico
+    if (dto.done !== undefined && dto.done !== task.done) {
+      data.done = dto.done
+      data.completedAt = dto.done ? new Date() : null
+      events.push({
+        type: dto.done ? 'task_completed' : 'task_reopened',
+        data: { title: dto.title?.trim() ?? task.title } as Prisma.InputJsonValue,
+      })
+    }
+    await this.prisma.opportunityTask.update({ where: { id: taskId }, data })
+    await this.saveEvents(tenantId, id, events, author)
+    return this.prisma.opportunity.findUnique({ where: { id }, include: withRelations })
+  }
+
+  async removeTask(id: string, taskId: string) {
+    await this.ensureTask(id, taskId)
+    await this.prisma.opportunityTask.delete({ where: { id: taskId } })
+    return this.prisma.opportunity.findUnique({ where: { id }, include: withRelations })
+  }
+
+  // Garante que a tarefa existe e é da oportunidade/tenant; retorna tenantId + estado atual.
+  private async ensureTask(opportunityId: string, taskId: string) {
+    const tenantId = await this.tenant.currentId()
+    const task = await this.prisma.opportunityTask.findFirst({
+      where: { id: taskId, tenantId },
+      select: { opportunityId: true, title: true, done: true },
+    })
+    if (!task || task.opportunityId !== opportunityId)
+      throw new NotFoundException('Tarefa não encontrada.')
+    return { tenantId, task }
   }
 
   // Garante que o comentário existe, é da oportunidade/tenant e pertence ao usuário.

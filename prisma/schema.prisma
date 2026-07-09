@@ -45,6 +45,7 @@ model Tenant {
   activities    OpportunityActivity[]
   opportunityEvents OpportunityEvent[]
   opportunityComments OpportunityComment[]
+  opportunityTasks    OpportunityTask[]
   documents     Document[]
   pipelines     Pipeline[]
   stages        Stage[]
@@ -314,6 +315,8 @@ model Opportunity {
   events     OpportunityEvent[]
   // comentários internos da equipe (aba "Comentários")
   comments   OpportunityComment[]
+  // checklist de tarefas da oportunidade (aba "Oportunidade")
+  tasks      OpportunityTask[]
   // documentos anexados no contexto desta oportunidade (o dono é o contato)
   documents  Document[]
   createdAt  DateTime             @default(now())
@@ -431,6 +434,25 @@ model OpportunityComment {
   @@index([opportunityId])
   @@index([tenantId])
   @@map("opportunity_comments")
+}
+
+// Checklist de tarefas da oportunidade (aba "Oportunidade"). Item simples: título,
+// concluída ou não, e a data de conclusão. Marcar/desmarcar gera evento no histórico.
+model OpportunityTask {
+  id            String      @id @default(uuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  title       String
+  done        Boolean   @default(false)
+  completedAt DateTime? // quando foi marcada como concluída
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([opportunityId])
+  @@index([tenantId])
+  @@map("opportunity_tasks")
 }
 
 // Documento (arquivo) do lead — armazenado no R2 privado (bucket imova-leads), acessível

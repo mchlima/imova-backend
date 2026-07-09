@@ -16,6 +16,7 @@ import { ReorderDto } from './dto/reorder.dto'
 import { CreateActivityDto } from './dto/create-activity.dto'
 import { UpdateActivityDto } from './dto/update-activity.dto'
 import { CreateCommentDto, UpdateCommentDto } from './dto/comment.dto'
+import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import type { SafeUser } from '../auth/auth.service'
@@ -134,5 +135,29 @@ export class OpportunitiesController {
     @CurrentUser() user: SafeUser,
   ) {
     return this.opportunities.removeComment(id, commentId, user)
+  }
+
+  // ── tarefas (checklist) ──
+  @Post(':id/tasks')
+  @UseGuards(JwtAuthGuard)
+  addTask(@Param('id') id: string, @Body() dto: CreateTaskDto) {
+    return this.opportunities.addTask(id, dto)
+  }
+
+  @Patch(':id/tasks/:taskId')
+  @UseGuards(JwtAuthGuard)
+  updateTask(
+    @Param('id') id: string,
+    @Param('taskId') taskId: string,
+    @Body() dto: UpdateTaskDto,
+    @CurrentUser() user: SafeUser,
+  ) {
+    return this.opportunities.updateTask(id, taskId, dto, user.name)
+  }
+
+  @Delete(':id/tasks/:taskId')
+  @UseGuards(JwtAuthGuard)
+  removeTask(@Param('id') id: string, @Param('taskId') taskId: string) {
+    return this.opportunities.removeTask(id, taskId)
   }
 }
