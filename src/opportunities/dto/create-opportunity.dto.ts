@@ -36,6 +36,9 @@ export class CreateOpportunityDto {
   @Type(() => NewContactDto)
   contact?: NewContactDto
 
+  // título opcional (vazio = usa o nome do contato)
+  @IsOptional() @IsString() title?: string
+
   // origem: 'manual' (padrão) ou 'import' para a base trazida de fora.
   @IsOptional() @IsString() source?: string
 

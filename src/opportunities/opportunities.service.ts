@@ -110,6 +110,7 @@ export class OpportunitiesService {
         pipelineId: pipeline.id,
         contactId,
         stageId,
+        title: dto.title?.trim() ?? '',
         source: dto.source ?? 'manual',
         temperature: dto.temperature ?? 'Sem classificação',
         fields: fields as Prisma.InputJsonValue,

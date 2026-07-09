@@ -14,6 +14,9 @@ export class UpdateOpportunityDto {
   // motivo da perda (quando o estágio é de perda)
   @IsOptional() @IsString() lossReason?: string
 
+  // título opcional (vazio = usa o nome do contato)
+  @IsOptional() @IsString() title?: string
+
   // descrição livre (markdown) da oportunidade
   @IsOptional() @IsString() description?: string
 
