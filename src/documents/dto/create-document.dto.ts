@@ -5,8 +5,4 @@ import { IsOptional, IsString, IsNotEmpty } from 'class-validator'
 export class CreateDocumentDto {
   @IsString() @IsNotEmpty() contactId!: string
   @IsOptional() @IsString() opportunityId?: string
-  // categoria curada (rg_cpf, comprovante_renda, ...) ou 'outro'
-  @IsOptional() @IsString() category?: string
-  // texto livre quando category = 'outro'
-  @IsOptional() @IsString() categoryLabel?: string
 }
