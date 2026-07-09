@@ -18,6 +18,8 @@ const withRelations = {
   events: { orderBy: { createdAt: 'desc' as const } },
   // comentários internos (mais antigo no topo, como um chat)
   comments: { orderBy: { createdAt: 'asc' as const } },
+  // contagem de documentos anexados A ESTA oportunidade (indicador no card)
+  _count: { select: { documents: true } },
 }
 
 // Payload genérico de ingestão (CRM core — sem regra de domínio do Meu Revelar).
