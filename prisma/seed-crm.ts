@@ -3,10 +3,10 @@ import { createHash, randomBytes } from 'node:crypto'
 
 const prisma = new PrismaClient()
 
-// Tenant inicial (o Meu Revelar) e o funil default como dado.
+// Tenant inicial (o ReveLar) e o funil default como dado.
 // Os estágios espelham os status que antes eram constantes no código.
 // key === Opportunity.status (mantido igual para não migrar dados de status).
-const TENANT = { slug: 'imova', name: 'Meu Revelar' }
+const TENANT = { slug: 'imova', name: 'ReveLar' }
 const PIPELINE = { key: 'default', label: 'Funil de vendas' }
 const STAGES = [
   { key: 'Lead', label: 'Lead', color: '#1E40AF', order: 1, inKanban: true },

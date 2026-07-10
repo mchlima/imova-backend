@@ -58,7 +58,7 @@ async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { slug: 'imova' },
     update: {},
-    create: { slug: 'imova', name: 'Meu Revelar' },
+    create: { slug: 'imova', name: 'ReveLar' },
   })
   const tenantId = tenant.id
 
@@ -89,8 +89,12 @@ async function main() {
     programa: 'Minha Casa Minha Vida (HIS)',
     aceitaFgts: true,
     subsidioAte: 55000,
+    // tetos HIS/HMP (Prefeitura de SP) — montam o selo dinâmico na LP
+    tetoHis1: 276102,
+    tetoHis2: 383636,
+    tetoHmp: 537672,
     amenities: AMENITIES,
-    seoTitle: 'Ares do Horto — Apartamentos 2 dormitórios no Horto do Ipê (SP) | Meu Revelar',
+    seoTitle: 'Ares do Horto — Apartamentos 2 dormitórios no Horto do Ipê (SP) | ReveLar',
     seoDescription:
       'Ares do Horto (Plano&Plano): apartamentos de 2 dormitórios no Horto do Ipê, São Paulo, ' +
       'a partir de R$ 234.592. Simule o financiamento e fale com um corretor parceiro.',

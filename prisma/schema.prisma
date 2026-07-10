@@ -1,4 +1,4 @@
-// Prisma schema — Meu Revelar backend
+// Prisma schema — ReveLar backend
 generator client {
   provider = "prisma-client-js"
 }
@@ -32,7 +32,7 @@ model User {
 }
 
 // ── CRM: tenancy (multi-tenant) ────────────────────────────────────────────
-// O CRM é multi-tenant: cada projeto que usa o CRM é um Tenant. O Meu Revelar é o
+// O CRM é multi-tenant: cada projeto que usa o CRM é um Tenant. O ReveLar é o
 // tenant 'imova'. Toda entidade do CRM carrega tenantId e é escopada por ele.
 // Ver ADR 0002 (imova-docs/decisions/0002-crm-portavel-multi-tenant.md).
 model Tenant {

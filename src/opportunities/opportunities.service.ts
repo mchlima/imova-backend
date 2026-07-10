@@ -25,8 +25,8 @@ const withRelations = {
   _count: { select: { documents: true } },
 }
 
-// Payload genérico de ingestão (CRM core — sem regra de domínio do Meu Revelar).
-// Fonte externa (outro projeto) chega por aqui via /ingest; a captura do Meu Revelar
+// Payload genérico de ingestão (CRM core — sem regra de domínio do ReveLar).
+// Fonte externa (outro projeto) chega por aqui via /ingest; a captura do ReveLar
 // (POST /opportunities) monta este mesmo shape internamente.
 export interface IngestInput {
   tenantId: string

@@ -27,6 +27,6 @@ async function bootstrap() {
 
   const port = config.get<number>('PORT', 3001)
   await app.listen(port)
-  console.log(`Meu Revelar backend rodando em http://localhost:${port}`)
+  console.log(`ReveLar backend rodando em http://localhost:${port}`)
 }
 bootstrap()

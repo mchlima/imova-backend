@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 
-// Seed idempotente dos 2 pipelines (boards) do Meu Revelar.
+// Seed idempotente dos 2 pipelines (boards) do ReveLar.
 //
 //  1. Qualificação (pipeline atual — key 'default'): onde todo lead do site cai. A
 //     pré-venda recebe, qualifica e repassa.

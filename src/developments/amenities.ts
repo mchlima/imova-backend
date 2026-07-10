@@ -29,8 +29,8 @@ export const AMENITIES: AmenityDef[] = [
   { slug: 'quadra', label: 'Quadra', category: 'esporte' },
   { slug: 'fitness', label: 'Academia / fitness', category: 'esporte' },
   { slug: 'ginastica_externa', label: 'Ginástica externa', category: 'esporte' },
-  { slug: 'playground', label: 'Playground', category: 'esporte' },
-  { slug: 'brinquedoteca', label: 'Brinquedoteca', category: 'esporte' },
+  { slug: 'playground', label: 'Playground', category: 'lazer' },
+  { slug: 'brinquedoteca', label: 'Brinquedoteca', category: 'lazer' },
 
   { slug: 'pet_place', label: 'Pet place', category: 'pet' },
   { slug: 'pet_care', label: 'Pet care', category: 'pet' },

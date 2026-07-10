@@ -4,7 +4,7 @@ import { ApiKeyGuard } from './api-key.guard'
 import { IngestDto } from './dto/ingest.dto'
 
 // Fronteira de ingestão do CRM para projetos externos (server-to-server).
-// O Meu Revelar, sendo o host, usa o POST /opportunities interno; outros projetos
+// O ReveLar, sendo o host, usa o POST /opportunities interno; outros projetos
 // mandam pra cá com a API key do seu tenant.
 @Controller('ingest')
 export class IngestController {
