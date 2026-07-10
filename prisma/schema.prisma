@@ -51,6 +51,7 @@ model Tenant {
   stages        Stage[]
   fieldSections    FieldSection[]
   fieldDefinitions FieldDefinition[]
+  developments     Development[]
   createdAt DateTime @default(now())
 
   @@map("tenants")
@@ -505,5 +506,170 @@ model City {
   @@index([uf])
   @@index([name])
   @@map("cities")
+}
+
+// ── Empreendimentos (ADR 0010) ──────────────────────────────────────────────
+// Domínio próprio (separado do CMS): catálogo de empreendimentos no banco, com
+// LP por template e catálogo filtrável. A unidade é o CONDOMÍNIO/FASE (o que
+// vira card+LP); o masterplan é agrupamento leve por slug. Rascunho + snapshot
+// publicado no mesmo espírito de Post, com lógica própria.
+
+enum DevelopmentRegiao {
+  zona_leste
+  zona_oeste
+  zona_sul
+  zona_norte
+  centro
+  interior
+  grande_sp
+}
+
+enum DevelopmentStatus {
+  breve_lancamento
+  em_construcao
+  futuro_lancamento
+  imovel_pronto
+  lancamento
+}
+
+enum DevelopmentImageKind {
+  hero
+  lazer
+  planta
+}
+
+model Development {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // identidade
+  slug        String
+  name        String
+  construtora String @default("")
+  tipo        String @default("apartamentos") // segmento da URL
+  descricao   String @default("")
+
+  // masterplan (agrupamento leve — irmãos compartilham o slug)
+  masterplanName String @default("")
+  masterplanSlug String @default("")
+
+  // localização
+  uf         String            @default("SP")
+  cidade     String            @default("")
+  cidadeSlug String            @default("")
+  bairro     String            @default("")
+  bairroSlug String            @default("")
+  regiao     DevelopmentRegiao @default(zona_sul)
+  endereco   String            @default("")
+  standEndereco String         @default("")
+  lat        Float?
+  lng        Float?
+
+  // estágio / obra
+  status          DevelopmentStatus @default(breve_lancamento)
+  obraEvolucaoPct Int?
+  obraAtualizadoEm DateTime?
+  entregaLabel    String            @default("")
+
+  // comercial
+  priceFrom  Int    @default(0) // reais (0 = sob consulta)
+  priceMax   Int?
+  programa   String @default("")
+  aceitaFgts Boolean @default(false)
+  subsidioAte Int?
+  rendaMinima Int?
+  tetoHis1    Int?
+  tetoHis2    Int?
+  tetoHmp     Int?
+
+  // físico
+  totalUnidades Int?
+  torres        Int?
+  pavimentos    String @default("")
+  terrenoM2     Float?
+
+  // facetas de filtro (desnormalizadas das tipologias no save)
+  bedroomsMin Int @default(0)
+  bedroomsMax Int @default(0)
+  parkingMax  Int @default(0)
+  areaMin     Float @default(0)
+  areaMax     Float @default(0)
+  suitesMax   Int @default(0)
+
+  // características (vocabulário canônico — slugs)
+  amenities String[] @default([])
+
+  // legal (exibição na LP)
+  incorporadora        String @default("")
+  cnpj                 String @default("")
+  registroIncorporacao String @default("")
+
+  // equipe técnica
+  arquitetura String @default("")
+  paisagismo  String @default("")
+  decoracao   String @default("")
+
+  // SEO
+  seoTitle       String @default("")
+  seoDescription String @default("")
+
+  // publicação: `published` = visível no site (edições ficam ao vivo — o rascunho
+  // é simplesmente o registro ainda não publicado). Ver ADR 0010.
+  published        Boolean   @default(false)
+  publishedAt      DateTime?
+  firstPublishedAt DateTime? // fixa a "novidade" (ordena o catálogo)
+
+  typologies DevelopmentTypology[]
+  images     DevelopmentImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([published])
+  @@index([regiao])
+  @@index([status])
+  @@index([bairroSlug])
+  @@map("developments")
+}
+
+model DevelopmentTypology {
+  id            String      @id @default(uuid())
+  developmentId String
+  development   Development @relation(fields: [developmentId], references: [id], onDelete: Cascade)
+
+  label    String
+  bedrooms Int    @default(0)
+  suites   Int?
+  areaMin  Float  @default(0)
+  areaMax  Float  @default(0)
+  priceFrom Int?
+  parking  Int?
+  terraco  Boolean @default(false)
+  order    Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([developmentId])
+  @@map("development_typologies")
+}
+
+model DevelopmentImage {
+  id            String      @id @default(uuid())
+  developmentId String
+  development   Development @relation(fields: [developmentId], references: [id], onDelete: Cascade)
+
+  storageKey String // chave do objeto no R2 (fonte de verdade p/ deleção)
+  url        String // URL pública
+  kind       DevelopmentImageKind @default(lazer)
+  caption    String  @default("")
+  order      Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([developmentId])
+  @@map("development_images")
 }
 

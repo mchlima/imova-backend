@@ -1,6 +1,12 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3'
 
 // Armazenamento de imagens no Cloudflare R2 (S3-compatível), bucket imova-public.
 @Injectable()
@@ -59,5 +65,45 @@ export class R2Service {
     } catch (e) {
       this.logger.warn(`Falha ao remover objeto R2 "${key}": ${(e as Error).message}`)
     }
+  }
+
+  /** Lista TODAS as chaves sob um prefixo (pagina internamente). */
+  async listKeys(prefix: string): Promise<string[]> {
+    if (!this.client) return []
+    const keys: string[] = []
+    let token: string | undefined
+    do {
+      const res = await this.client.send(
+        new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, ContinuationToken: token }),
+      )
+      for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key)
+      token = res.IsTruncated ? res.NextContinuationToken : undefined
+    } while (token)
+    return keys
+  }
+
+  /** Remove várias chaves (em lotes de 1000, limite do S3/R2). */
+  async removeMany(keys: string[]): Promise<void> {
+    if (!this.client || !keys.length) return
+    for (let i = 0; i < keys.length; i += 1000) {
+      const batch = keys.slice(i, i + 1000)
+      try {
+        await this.client.send(
+          new DeleteObjectsCommand({
+            Bucket: this.bucket,
+            Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+          }),
+        )
+      } catch (e) {
+        this.logger.warn(`Falha ao remover lote R2 (${batch.length} objs): ${(e as Error).message}`)
+      }
+    }
+  }
+
+  /** Remove TUDO sob um prefixo (usado ao excluir um empreendimento). */
+  async removeByPrefix(prefix: string): Promise<number> {
+    const keys = await this.listKeys(prefix)
+    await this.removeMany(keys)
+    return keys.length
   }
 }

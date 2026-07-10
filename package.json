@@ -12,7 +12,8 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "db:seed:locations": "tsx prisma/seed-locations.ts"
+    "db:seed:locations": "tsx prisma/seed-locations.ts",
+    "db:seed:developments": "tsx prisma/seed-developments.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -40,7 +41,8 @@
     "cookie-parser": "^1.4.7",
     "markdown-it": "^14.1.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
