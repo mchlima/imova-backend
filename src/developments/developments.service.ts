@@ -129,9 +129,19 @@ export class DevelopmentsService {
     }
 
     // tipologias: substitui a lista inteira + recalcula facetas
+    let droppedPlantaKeys: string[] = []
     if (dto.typologies !== undefined) {
       const list = dto.typologies
       Object.assign(data, this.facets(list))
+      // plantas que saíram da lista → apagar do R2 após salvar (delete-on-replace)
+      const oldTypos = await this.prisma.developmentTypology.findMany({
+        where: { developmentId: id },
+        select: { imageStorageKey: true },
+      })
+      const kept = new Set(list.map((t) => t.imageStorageKey).filter(Boolean))
+      droppedPlantaKeys = oldTypos
+        .map((t) => t.imageStorageKey)
+        .filter((k): k is string => !!k && !kept.has(k))
       data.typologies = {
         deleteMany: {},
         create: list.map((t, i) => ({
@@ -144,13 +154,33 @@ export class DevelopmentsService {
           parking: t.parking ?? null,
           terraco: t.terraco ?? false,
           order: t.order ?? i,
+          imageUrl: t.imageUrl ?? '',
+          imageStorageKey: t.imageStorageKey ?? '',
         })),
       }
     }
 
-    return retryOnSlugCollision(() =>
+    const saved = await retryOnSlugCollision(() =>
       this.prisma.development.update({ where: { id }, data, include: withRelations }),
     )
+    // limpeza best-effort das plantas trocadas (não bloqueia a resposta)
+    for (const key of droppedPlantaKeys) {
+      await this.storage.remove(key).catch(() => undefined)
+    }
+    return saved
+  }
+
+  // upload da planta de uma tipologia: sobe ao R2 e devolve url+storageKey
+  // (o vínculo é salvo junto da lista de tipologias, não cria linha de imagem)
+  async addTypologyImage(id: string, file: UploadedImage) {
+    const tenantId = await this.tenant.currentId()
+    const dev = await this.prisma.development.findFirst({
+      where: { id, tenantId },
+      select: { id: true },
+    })
+    if (!dev) throw new NotFoundException('Empreendimento não encontrado.')
+    const { key, url } = await this.storage.upload(tenantId, id, 'planta', file)
+    return { url, storageKey: key }
   }
 
   async remove(id: string) {
@@ -255,11 +285,21 @@ export class DevelopmentsService {
   // reconciliação sob demanda: apaga do R2 objetos sem linha no banco
   async reconcileStorage() {
     const tenantId = await this.tenant.currentId()
-    const rows = await this.prisma.developmentImage.findMany({
-      where: { development: { tenantId } },
-      select: { storageKey: true },
-    })
-    return this.storage.reconcileTenant(tenantId, rows.map((r) => r.storageKey))
+    const [imgs, typos] = await Promise.all([
+      this.prisma.developmentImage.findMany({
+        where: { development: { tenantId } },
+        select: { storageKey: true },
+      }),
+      this.prisma.developmentTypology.findMany({
+        where: { development: { tenantId } },
+        select: { imageStorageKey: true },
+      }),
+    ])
+    const known = [
+      ...imgs.map((r) => r.storageKey),
+      ...typos.map((t) => t.imageStorageKey),
+    ].filter(Boolean)
+    return this.storage.reconcileTenant(tenantId, known)
   }
 
   // ── Público ──

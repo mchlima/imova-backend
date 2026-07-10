@@ -647,8 +647,12 @@ model DevelopmentTypology {
   areaMax  Float  @default(0)
   priceFrom Int?
   parking  Int?
-  terraco  Boolean @default(false)
+  terraco  Boolean @default(false) // exibido como "Varanda" na LP
   order    Int     @default(0)
+
+  // planta desta tipologia (1:1). storageKey = fonte de verdade p/ deleção no R2.
+  imageUrl        String @default("")
+  imageStorageKey String @default("")
 
   createdAt DateTime @default(now())
 

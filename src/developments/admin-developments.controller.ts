@@ -83,6 +83,14 @@ export class AdminDevelopmentsController {
     return this.developments.addImage(id, k, file)
   }
 
+  // upload da planta de uma tipologia (devolve url+storageKey p/ salvar na lista)
+  @Post(':id/typology-image')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 12 * 1024 * 1024 } }))
+  addTypologyImage(@Param('id') id: string, @UploadedFile() file: UploadedImage) {
+    if (!file) throw new BadRequestException('Arquivo de imagem ausente.')
+    return this.developments.addTypologyImage(id, file)
+  }
+
   @Patch(':id/images/:imageId')
   updateImage(
     @Param('id') id: string,

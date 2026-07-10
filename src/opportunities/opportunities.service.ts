@@ -57,9 +57,17 @@ export class OpportunitiesService {
     const contact = await this.resolveContact(tenantId, c)
 
     // estágio via id externo (define também o pipeline); ausente = board padrão + 1º estágio.
-    const stage = stageExternalId
+    // Fallback por label: o site referencia estágios pelo nome (ex.: "Lead"/"Nutrição"),
+    // não pelo UUID externo — então tentamos externalId primeiro e, se não casar, o label.
+    let stage = stageExternalId
       ? await this.prisma.stage.findFirst({ where: { tenantId, externalId: stageExternalId } })
       : null
+    if (!stage && stageExternalId) {
+      stage = await this.prisma.stage.findFirst({
+        where: { tenantId, label: stageExternalId },
+        orderBy: { order: 'asc' },
+      })
+    }
     const pipelineId = stage ? stage.pipelineId : (await this.defaultPipeline(tenantId)).id
     const stageId = stage ? stage.id : await this.defaultStageId(tenantId, pipelineId)
     // sanitiza os campos aninhados contra as definições (ignora seção/campo desconhecido)

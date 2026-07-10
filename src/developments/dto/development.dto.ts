@@ -29,6 +29,9 @@ export class TypologyInputDto {
   @IsOptional() @IsInt() @Min(0) parking?: number
   @IsOptional() @IsBoolean() terraco?: boolean
   @IsOptional() @IsInt() order?: number
+  // planta desta tipologia (upload retorna url+storageKey; salvos junto da lista)
+  @IsOptional() @IsString() @MaxLength(500) imageUrl?: string
+  @IsOptional() @IsString() @MaxLength(300) imageStorageKey?: string
 }
 
 // Criação: só o nome é obrigatório (nasce como rascunho).

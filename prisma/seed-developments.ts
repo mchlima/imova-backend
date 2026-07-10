@@ -40,11 +40,18 @@ const LAZER: { file: string; caption: string }[] = [
   { file: 'bricolagem.webp', caption: 'Ateliê / bricolagem' },
 ]
 
-const PLANTAS: { file: string; caption: string }[] = [
-  { file: 'planta-2-dorms.webp', caption: 'Planta 2 dormitórios' },
-  { file: 'planta-2-dorms-b.webp', caption: 'Planta 2 dormitórios' },
-  { file: 'planta-2-dorms-terraco.webp', caption: '2 dormitórios com terraço' },
-  { file: 'planta-2-dorms-terraco-b.webp', caption: '2 dormitórios com terraço' },
+// tipologias: cada uma é uma planta com suas próprias características.
+// terraco = "Varanda" na LP. Área/preço sob consulta nesta fase.
+const TYPOLOGIES: {
+  label: string
+  bedrooms: number
+  terraco: boolean
+  areaMin: number
+  areaMax: number
+  planta: string
+}[] = [
+  { label: '2 dormitórios', bedrooms: 2, terraco: false, areaMin: 31, areaMax: 33, planta: 'planta-2-dorms.webp' },
+  { label: '2 dormitórios com varanda', bedrooms: 2, terraco: true, areaMin: 33, areaMax: 35, planta: 'planta-2-dorms-terraco.webp' },
 ]
 
 async function main() {
@@ -75,7 +82,9 @@ async function main() {
     bairroSlug: 'horto-do-ipe',
     regiao: DevelopmentRegiao.zona_sul,
     endereco: 'Estrada do Campo Limpo, 1501 — Horto do Ipê',
-    status: DevelopmentStatus.breve_lancamento,
+    lat: -23.629,
+    lng: -46.7689,
+    status: DevelopmentStatus.lancamento,
     priceFrom: 234592,
     programa: 'Minha Casa Minha Vida (HIS)',
     aceitaFgts: true,
@@ -89,8 +98,8 @@ async function main() {
     bedroomsMin: 2,
     bedroomsMax: 2,
     parkingMax: 0,
-    areaMin: 0,
-    areaMax: 0,
+    areaMin: 31,
+    areaMax: 35,
     suitesMax: 0,
     published: true,
   }
@@ -111,22 +120,25 @@ async function main() {
   await prisma.developmentTypology.deleteMany({ where: { developmentId: dev.id } })
   await prisma.developmentImage.deleteMany({ where: { developmentId: dev.id } })
 
-  await prisma.developmentTypology.create({
-    data: {
+  await prisma.developmentTypology.createMany({
+    data: TYPOLOGIES.map((t, i) => ({
       developmentId: dev.id,
-      label: '2 dormitórios',
-      bedrooms: 2,
-      areaMin: 0,
-      areaMax: 0,
-      priceFrom: 234592,
-      order: 0,
-    },
+      label: t.label,
+      bedrooms: t.bedrooms,
+      areaMin: t.areaMin,
+      areaMax: t.areaMax,
+      priceFrom: null,
+      parking: null,
+      terraco: t.terraco,
+      order: i,
+      imageUrl: `${IMG_BASE}/${t.planta}`,
+      imageStorageKey: '', // asset hospedado no site, não no R2
+    })),
   })
 
   const images = [
     { file: 'piscina.webp', caption: 'Piscina adulto e infantil', kind: DevelopmentImageKind.hero },
     ...LAZER.map((l) => ({ ...l, kind: DevelopmentImageKind.lazer })),
-    ...PLANTAS.map((p) => ({ ...p, kind: DevelopmentImageKind.planta })),
   ]
   await prisma.developmentImage.createMany({
     data: images.map((img, i) => ({
