@@ -50,8 +50,10 @@ const TYPOLOGIES: {
   areaMax: number
   planta: string
 }[] = [
-  { label: '2 dormitórios', bedrooms: 2, terraco: false, areaMin: 31, areaMax: 33, planta: 'planta-2-dorms.webp' },
-  { label: '2 dormitórios com varanda', bedrooms: 2, terraco: true, areaMin: 33, areaMax: 35, planta: 'planta-2-dorms-terraco.webp' },
+  // metragens exatas do book: 31,71 m² (finais 03/04/09/10 — Torre B) e
+  // 34,39–34,45 m² com varanda (finais 02/05/08/11 — Torre A).
+  { label: '2 dormitórios', bedrooms: 2, terraco: false, areaMin: 31.71, areaMax: 31.71, planta: 'planta-2-dorms.webp' },
+  { label: '2 dormitórios com varanda', bedrooms: 2, terraco: true, areaMin: 34.39, areaMax: 34.45, planta: 'planta-2-dorms-terraco.webp' },
 ]
 
 async function main() {
@@ -81,10 +83,10 @@ async function main() {
     bairro: 'Horto do Ipê',
     bairroSlug: 'horto-do-ipe',
     regiao: DevelopmentRegiao.zona_sul,
-    endereco: 'Estrada do Campo Limpo, 1501 — Horto do Ipê',
+    endereco: 'Estrada do Campo Limpo, 1.501 — Horto do Ipê',
     lat: -23.629,
     lng: -46.7689,
-    status: DevelopmentStatus.lancamento,
+    status: DevelopmentStatus.breve_lancamento,
     priceFrom: 234592,
     programa: 'Minha Casa Minha Vida (HIS)',
     aceitaFgts: true,
@@ -93,17 +95,26 @@ async function main() {
     tetoHis1: 276102,
     tetoHis2: 383636,
     tetoHmp: 537672,
+    // ficha técnica (book + ficha, jun/2026)
+    totalUnidades: 574,
+    torres: 2,
+    arquitetura: 'MCAA Arquitetos',
+    paisagismo: 'Núcleo Arquitetura da Paisagem',
+    decoracao: 'Mandril Arquitetura e Decoração',
+    incorporadora: 'Plano Aracati Empreendimentos Imobiliários Ltda',
+    cnpj: '34.338.083/0001-45',
+    registroIncorporacao: 'R.2 (03/06/2026) — matrícula nº 559.370, 11º Oficial de Registro de Imóveis de São Paulo',
     amenities: AMENITIES,
     seoTitle: 'Ares do Horto — Apartamentos 2 dormitórios no Horto do Ipê (SP) | ReveLar',
     seoDescription:
-      'Ares do Horto (Plano&Plano): apartamentos de 2 dormitórios no Horto do Ipê, São Paulo, ' +
-      'a partir de R$ 234.592. Simule o financiamento e fale com um corretor parceiro.',
-    // facetas (2 dorms, área/preço sob consulta)
+      'Ares do Horto (Plano&Plano): apartamentos de 2 dormitórios de 31,71 a 35,28 m² no Horto do Ipê, ' +
+      'São Paulo, a partir de R$ 234.592. MCMV (HIS/HMP), subsídio e uso do FGTS. Simule e fale com um corretor.',
+    // facetas
     bedroomsMin: 2,
     bedroomsMax: 2,
     parkingMax: 0,
-    areaMin: 31,
-    areaMax: 35,
+    areaMin: 31.71,
+    areaMax: 35.28,
     suitesMax: 0,
     published: true,
   }
