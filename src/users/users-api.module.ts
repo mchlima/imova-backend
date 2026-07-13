@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common'
-import { UsersController } from './users.controller'
+import { UsersController, AdminUsersController, AdminRolesController } from './users.controller'
 import { UsersModule } from './users.module'
 import { AuthModule } from '../auth/auth.module'
 
@@ -7,6 +7,6 @@ import { AuthModule } from '../auth/auth.module'
 // dependência circular AuthModule ⇄ UsersModule: aqui importamos ambos sem ciclo.
 @Module({
   imports: [AuthModule, UsersModule],
-  controllers: [UsersController],
+  controllers: [UsersController, AdminUsersController, AdminRolesController],
 })
 export class UsersApiModule {}

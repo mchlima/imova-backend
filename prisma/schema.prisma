@@ -13,14 +13,42 @@ enum UserRole {
   AGENT
 }
 
+// ── RBAC ───────────────────────────────────────────────────────────────────
+// Autorização é por PERMISSÃO, não por role: a role é só um pacote nomeado de
+// permissões, editável no admin. O vocabulário canônico de permissões vive no
+// código (src/auth/permissions.ts) — o banco guarda apenas quais foram concedidas.
+//
+// A role de sistema (isSystem) tem a permissão coringa '*' e não pode ser editada
+// nem excluída — é a garantia de que sempre existe alguém capaz de administrar.
+model Role {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  permissions String[]
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
+
+  @@map("roles")
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
   name         String
   passwordHash String
+  // @deprecated — substituído por roleId. Mantido até o backfill rodar em produção;
+  // remover em um segundo db push, depois que o backend novo estiver no ar.
   role         UserRole @default(AGENT)
+  roleId       String?
+  active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  roleRef Role? @relation(fields: [roleId], references: [id], onDelete: SetNull)
 
   posts Post[]
   // oportunidades pelas quais este usuário é responsável (M2M) — conceito genérico de CRM

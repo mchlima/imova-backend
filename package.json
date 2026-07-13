@@ -13,7 +13,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:seed:locations": "tsx prisma/seed-locations.ts",
-    "db:seed:developments": "tsx prisma/seed-developments.ts"
+    "db:seed:developments": "tsx prisma/seed-developments.ts",
+    "db:seed:roles": "tsx prisma/seed-roles.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

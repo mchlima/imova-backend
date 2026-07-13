@@ -12,6 +12,8 @@ import {
 import { LocationsService } from './locations.service'
 import { UpdateStateRateDto, UpdateCityRateDto } from './dto/update-rates.dto'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { PermissionsGuard } from '../auth/permissions.guard'
+import { RequirePermissions } from '../auth/require-permissions.decorator'
 
 @Controller('locations')
 export class LocationsController {
@@ -31,13 +33,15 @@ export class LocationsController {
 
   // ── Protegido: edição de taxas no admin ──
   @Patch('states/:uf')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('locations:manage')
   updateStateRate(@Param('uf') uf: string, @Body() dto: UpdateStateRateDto) {
     return this.locations.updateStateRate(uf, dto.notaryRate)
   }
 
   @Patch('cities/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('locations:manage')
   updateCityRate(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateCityRateDto,

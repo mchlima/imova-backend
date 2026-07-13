@@ -18,70 +18,73 @@ import { UpdateActivityDto } from './dto/update-activity.dto'
 import { CreateCommentDto, UpdateCommentDto } from './dto/comment.dto'
 import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { PermissionsGuard } from '../auth/permissions.guard'
+import { RequirePermissions } from '../auth/require-permissions.decorator'
 import { CurrentUser } from '../auth/current-user.decorator'
 import type { SafeUser } from '../auth/auth.service'
 
 @Controller('opportunities')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class OpportunitiesController {
   constructor(private readonly opportunities: OpportunitiesService) {}
 
   // A captura pública (simulador) fica no módulo capture. Aqui, só triagem (sessão).
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:read')
   findAll() {
     return this.opportunities.findAll()
   }
 
   // Criação manual no admin (contato existente ou novo). Origem padrão = 'manual'.
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   create(@Body() dto: CreateOpportunityDto, @CurrentUser() user: SafeUser) {
     return this.opportunities.createManual(dto, user.name)
   }
 
   // Agenda de follow-up: atividades pendentes de todas as oportunidades.
   @Get('activities/pending')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:read')
   pendingActivities() {
     return this.opportunities.pendingActivities()
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:read')
   findOne(@Param('id') id: string) {
     return this.opportunities.findOne(id)
   }
 
   // Reordenação do kanban (em lote) — precisa vir ANTES de @Patch(':id').
   @Patch('reorder')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   reorder(@Body() dto: ReorderDto, @CurrentUser() user: SafeUser) {
     return this.opportunities.reorder(dto.items, user.name)
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   update(@Param('id') id: string, @Body() dto: UpdateOpportunityDto, @CurrentUser() user: SafeUser) {
     return this.opportunities.update(id, dto, user.name)
   }
 
   // Move a oportunidade para outro board (ex.: "enviar para o board da corretora").
   @Post(':id/move-pipeline')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   moveToPipeline(@Param('id') id: string, @Body() dto: MovePipelineDto, @CurrentUser() user: SafeUser) {
     return this.opportunities.moveToPipeline(id, dto.pipelineId, dto.assigneeIds, user.name)
   }
 
   // Exclui a oportunidade (atividades caem em cascata; o contato permanece).
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:delete')
   remove(@Param('id') id: string) {
     return this.opportunities.remove(id)
   }
 
   // ── atividades / histórico (CRM) ──
   @Post(':id/activities')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   addActivity(
     @Param('id') id: string,
     @Body() dto: CreateActivityDto,
@@ -91,7 +94,7 @@ export class OpportunitiesController {
   }
 
   @Patch(':id/activities/:activityId')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   updateActivity(
     @Param('id') id: string,
     @Param('activityId') activityId: string,
@@ -101,7 +104,7 @@ export class OpportunitiesController {
   }
 
   @Delete(':id/activities/:activityId')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   removeActivity(
     @Param('id') id: string,
     @Param('activityId') activityId: string,
@@ -111,13 +114,13 @@ export class OpportunitiesController {
 
   // ── comentários internos (CRM) ──
   @Post(':id/comments')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   addComment(@Param('id') id: string, @Body() dto: CreateCommentDto, @CurrentUser() user: SafeUser) {
     return this.opportunities.addComment(id, dto, user)
   }
 
   @Patch(':id/comments/:commentId')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   updateComment(
     @Param('id') id: string,
     @Param('commentId') commentId: string,
@@ -128,7 +131,7 @@ export class OpportunitiesController {
   }
 
   @Delete(':id/comments/:commentId')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   removeComment(
     @Param('id') id: string,
     @Param('commentId') commentId: string,
@@ -139,13 +142,13 @@ export class OpportunitiesController {
 
   // ── tarefas (checklist) ──
   @Post(':id/tasks')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   addTask(@Param('id') id: string, @Body() dto: CreateTaskDto) {
     return this.opportunities.addTask(id, dto)
   }
 
   @Patch(':id/tasks/:taskId')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   updateTask(
     @Param('id') id: string,
     @Param('taskId') taskId: string,
@@ -156,7 +159,7 @@ export class OpportunitiesController {
   }
 
   @Delete(':id/tasks/:taskId')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('opportunities:write')
   removeTask(@Param('id') id: string, @Param('taskId') taskId: string) {
     return this.opportunities.removeTask(id, taskId)
   }
