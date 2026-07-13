@@ -32,6 +32,11 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'opportunities:delete', label: 'Excluir oportunidades' },
       { key: 'contacts:read', label: 'Ver contatos' },
       { key: 'contacts:write', label: 'Criar e editar contatos' },
+      {
+        key: 'contacts:delete',
+        label: 'Excluir contatos',
+        hint: 'Excluir um contato leva junto suas oportunidades, documentos e histórico.',
+      },
       { key: 'documents:read', label: 'Ver e baixar documentos' },
       { key: 'documents:write', label: 'Enviar documentos' },
       { key: 'documents:delete', label: 'Excluir documentos' },

@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -12,6 +13,7 @@ import { ContactsService } from './contacts.service'
 import { UpdateContactDto } from './dto/update-contact.dto'
 import { CreateContactDto } from './dto/create-contact.dto'
 import { CreateChannelDto } from './dto/create-channel.dto'
+import { DeleteContactsDto } from './dto/delete-contacts.dto'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { PermissionsGuard } from '../auth/permissions.guard'
 import { RequirePermissions } from '../auth/require-permissions.decorator'
@@ -43,6 +45,30 @@ export class ContactsController {
   @RequirePermissions('contacts:write')
   update(@Param('id') id: string, @Body() dto: UpdateContactDto) {
     return this.contacts.update(id, dto)
+  }
+
+  // ── exclusão ──
+  // Prévia do estrago: quantas oportunidades e documentos sairiam junto. A UI mostra
+  // isso na confirmação, então ninguém apaga o histórico sem saber.
+  @Post('deletion-impact')
+  @HttpCode(200)
+  @RequirePermissions('contacts:delete')
+  deletionImpact(@Body() dto: DeleteContactsDto) {
+    return this.contacts.deletionImpact(dto.ids)
+  }
+
+  // Em massa. Vem como POST porque DELETE com corpo não é confiável entre proxies.
+  @Post('bulk-delete')
+  @HttpCode(200)
+  @RequirePermissions('contacts:delete')
+  removeMany(@Body() dto: DeleteContactsDto) {
+    return this.contacts.removeMany(dto.ids)
+  }
+
+  @Delete(':id')
+  @RequirePermissions('contacts:delete')
+  remove(@Param('id') id: string) {
+    return this.contacts.remove(id)
   }
 
   // ── formas de contato (channels) ──

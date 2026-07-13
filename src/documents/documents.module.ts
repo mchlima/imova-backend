@@ -9,6 +9,6 @@ import { AuthModule } from '../auth/auth.module'
   imports: [AuthModule],
   controllers: [DocumentsController],
   providers: [DocumentsService, LeadsStorageService],
-  exports: [DocumentsService],
+  exports: [DocumentsService, LeadsStorageService],
 })
 export class DocumentsModule {}
